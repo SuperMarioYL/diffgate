@@ -1,0 +1,324 @@
+{
+  "schema_version": 1,
+  "description": "Hand-crafted silent-lie cases for the m1 verifier gate. Each case feeds a before/after blob plus one or more ClaimedActions into verifier.verify() and asserts the expected verdict. 'expected_passed=false' cases are the real lies we want DiffGate to catch; 'expected_passed=true' cases pin down the verifier's positive path so future refactors can't silently break truthful claims.",
+  "cases": [
+    {
+      "case_id": "py_rename_noop_001",
+      "description": "Classic silent-success: agent says it renamed foo→bar but wrote an empty diff.",
+      "language": "python",
+      "before": "def foo():\n    return 1\n",
+      "after": "def foo():\n    return 1\n",
+      "claims": [
+        {"kind": "rename", "symbol": "foo", "new_symbol": "bar"}
+      ],
+      "expected_passed": false,
+      "expected_mismatch_substring": "no-op"
+    },
+    {
+      "case_id": "py_rename_only_comment_002",
+      "description": "Agent renamed the symbol only in a comment, not in code.",
+      "language": "python",
+      "before": "# rename foo\ndef foo():\n    return 1\n",
+      "after": "# renamed foo to bar\ndef foo():\n    return 1\n",
+      "claims": [
+        {"kind": "rename", "symbol": "foo", "new_symbol": "bar"}
+      ],
+      "expected_passed": false,
+      "expected_mismatch_substring": "still present"
+    },
+    {
+      "case_id": "py_rename_only_usage_003",
+      "description": "Agent renamed call sites in the body but left the def name unchanged.",
+      "language": "python",
+      "before": "def foo():\n    return 1\n\ndef caller():\n    return foo() + foo()\n",
+      "after": "def foo():\n    return 1\n\ndef caller():\n    return bar() + bar()\n",
+      "claims": [
+        {"kind": "rename", "symbol": "foo", "new_symbol": "bar"}
+      ],
+      "expected_passed": false,
+      "expected_mismatch_substring": "still present"
+    },
+    {
+      "case_id": "py_delete_no_op_004",
+      "description": "Agent says it deleted helper() but the function is still defined.",
+      "language": "python",
+      "before": "def helper():\n    return 0\n\ndef main():\n    return helper()\n",
+      "after": "def helper():\n    return 0\n\ndef main():\n    return 0\n",
+      "claims": [
+        {"kind": "delete", "symbol": "helper"}
+      ],
+      "expected_passed": false,
+      "expected_mismatch_substring": "still present"
+    },
+    {
+      "case_id": "py_add_missing_005",
+      "description": "Agent claims it added a new validate() function but it isn't in the after-blob.",
+      "language": "python",
+      "before": "def main():\n    return 1\n",
+      "after": "def main():\n    return 1\n",
+      "claims": [
+        {"kind": "add", "symbol": "validate"}
+      ],
+      "expected_passed": false,
+      "expected_mismatch_substring": "not found among newly added"
+    },
+    {
+      "case_id": "py_signature_unchanged_006",
+      "description": "Agent says it changed handle()'s signature but parameters are identical.",
+      "language": "python",
+      "before": "def handle(req):\n    return req\n",
+      "after": "def handle(req):\n    # tidy up\n    return req\n",
+      "claims": [
+        {"kind": "signature_change", "symbol": "handle"}
+      ],
+      "expected_passed": false,
+      "expected_mismatch_substring": "unchanged"
+    },
+    {
+      "case_id": "py_move_no_scope_change_007",
+      "description": "Agent says it moved helper into ClassX but helper stayed at module level.",
+      "language": "python",
+      "before": "def helper():\n    return 1\n\nclass ClassX:\n    pass\n",
+      "after": "def helper():\n    return 1\n\nclass ClassX:\n    def other(self):\n        return 2\n",
+      "claims": [
+        {"kind": "move", "symbol": "helper", "scope": "ClassX"}
+      ],
+      "expected_passed": false,
+      "expected_mismatch_substring": "scope of 'helper' did not change"
+    },
+    {
+      "case_id": "py_rename_wrong_direction_008",
+      "description": "Agent renamed bar→foo but claimed foo→bar.",
+      "language": "python",
+      "before": "def bar():\n    return 1\n",
+      "after": "def foo():\n    return 1\n",
+      "claims": [
+        {"kind": "rename", "symbol": "foo", "new_symbol": "bar"}
+      ],
+      "expected_passed": false,
+      "expected_mismatch_substring": "rename"
+    },
+    {
+      "case_id": "py_multi_claim_one_lie_009",
+      "description": "Two claims where one is honest (rename) and one is a lie (claimed add never happened).",
+      "language": "python",
+      "before": "def foo():\n    return 1\n",
+      "after": "def bar():\n    return 1\n",
+      "claims": [
+        {"kind": "rename", "symbol": "foo", "new_symbol": "bar"},
+        {"kind": "add", "symbol": "validate"}
+      ],
+      "expected_passed": false,
+      "expected_mismatch_substring": "validate"
+    },
+    {
+      "case_id": "py_method_rename_noop_010",
+      "description": "Agent says it renamed ClassX.run→start but the method body is identical and the name unchanged.",
+      "language": "python",
+      "before": "class ClassX:\n    def run(self):\n        return 1\n",
+      "after": "class ClassX:\n    def run(self):\n        return 1\n",
+      "claims": [
+        {"kind": "rename", "symbol": "run", "new_symbol": "start", "scope": "ClassX"}
+      ],
+      "expected_passed": false,
+      "expected_mismatch_substring": "no-op"
+    },
+    {
+      "case_id": "ts_rename_noop_011",
+      "description": "TypeScript no-op rename — same blob in and out.",
+      "language": "typescript",
+      "before": "export function foo(): number {\n  return 1;\n}\n",
+      "after": "export function foo(): number {\n  return 1;\n}\n",
+      "claims": [
+        {"kind": "rename", "symbol": "foo", "new_symbol": "bar"}
+      ],
+      "expected_passed": false,
+      "expected_mismatch_substring": "no-op"
+    },
+    {
+      "case_id": "ts_class_delete_no_op_012",
+      "description": "Agent says it removed an unused class but it's still present.",
+      "language": "typescript",
+      "before": "export class Legacy {\n  run() { return 1; }\n}\n",
+      "after": "export class Legacy {\n  run() { return 1; }\n}\n\nexport class Modern {\n  run() { return 2; }\n}\n",
+      "claims": [
+        {"kind": "delete", "symbol": "Legacy"}
+      ],
+      "expected_passed": false,
+      "expected_mismatch_substring": "still present"
+    },
+    {
+      "case_id": "ts_add_missing_013",
+      "description": "Agent claims it added a helper function in TS but only edited comments.",
+      "language": "typescript",
+      "before": "export function main(): void {}\n",
+      "after": "// added helper\nexport function main(): void {}\n",
+      "claims": [
+        {"kind": "add", "symbol": "helper"}
+      ],
+      "expected_passed": false,
+      "expected_mismatch_substring": "not found among newly added"
+    },
+    {
+      "case_id": "go_rename_noop_014",
+      "description": "Go no-op rename.",
+      "language": "go",
+      "before": "package main\n\nfunc Foo() int { return 1 }\n",
+      "after": "package main\n\nfunc Foo() int { return 1 }\n",
+      "claims": [
+        {"kind": "rename", "symbol": "Foo", "new_symbol": "Bar"}
+      ],
+      "expected_passed": false,
+      "expected_mismatch_substring": "no-op"
+    },
+    {
+      "case_id": "go_delete_still_present_015",
+      "description": "Go: agent says it deleted LegacyType but the struct is still declared.",
+      "language": "go",
+      "before": "package main\n\ntype LegacyType struct{ x int }\n",
+      "after": "package main\n\ntype LegacyType struct{ x int }\n\ntype ModernType struct{ y int }\n",
+      "claims": [
+        {"kind": "delete", "symbol": "LegacyType"}
+      ],
+      "expected_passed": false,
+      "expected_mismatch_substring": "still present"
+    },
+    {
+      "case_id": "rust_rename_noop_016",
+      "description": "Rust no-op rename of a function item.",
+      "language": "rust",
+      "before": "pub fn foo() -> i32 { 1 }\n",
+      "after": "pub fn foo() -> i32 { 1 }\n",
+      "claims": [
+        {"kind": "rename", "symbol": "foo", "new_symbol": "bar"}
+      ],
+      "expected_passed": false,
+      "expected_mismatch_substring": "no-op"
+    },
+    {
+      "case_id": "rust_add_missing_017",
+      "description": "Rust: agent claims it added a new public function but the file is unchanged.",
+      "language": "rust",
+      "before": "pub fn main_entry() {}\n",
+      "after": "pub fn main_entry() {}\n",
+      "claims": [
+        {"kind": "add", "symbol": "validate"}
+      ],
+      "expected_passed": false,
+      "expected_mismatch_substring": "no-op"
+    },
+    {
+      "case_id": "py_rename_partial_018",
+      "description": "Old name deleted but new name not added — agent renamed away without inserting the new symbol.",
+      "language": "python",
+      "before": "def foo():\n    return 1\n",
+      "after": "def baz():\n    return 1\n",
+      "claims": [
+        {"kind": "rename", "symbol": "foo", "new_symbol": "bar"}
+      ],
+      "expected_passed": false,
+      "expected_mismatch_substring": "target 'bar' not found"
+    },
+    {
+      "case_id": "py_signature_change_only_default_019",
+      "description": "Agent claimed signature_change but only the default value of an arg was tweaked in the body, not the params list.",
+      "language": "python",
+      "before": "def fetch(url):\n    timeout = 5\n    return (url, timeout)\n",
+      "after": "def fetch(url):\n    timeout = 10\n    return (url, timeout)\n",
+      "claims": [
+        {"kind": "signature_change", "symbol": "fetch"}
+      ],
+      "expected_passed": false,
+      "expected_mismatch_substring": "unchanged"
+    },
+    {
+      "case_id": "py_delete_never_existed_020",
+      "description": "Agent says it deleted phantom_helper which was never defined.",
+      "language": "python",
+      "before": "def main():\n    return 1\n",
+      "after": "def main():\n    return 1\n",
+      "claims": [
+        {"kind": "delete", "symbol": "phantom_helper"}
+      ],
+      "expected_passed": false,
+      "expected_mismatch_substring": "not present"
+    },
+    {
+      "case_id": "py_rename_truth_021",
+      "description": "Truth case: actual rename — verifier must NOT flag this.",
+      "language": "python",
+      "before": "def foo():\n    return 1\n",
+      "after": "def bar():\n    return 1\n",
+      "claims": [
+        {"kind": "rename", "symbol": "foo", "new_symbol": "bar"}
+      ],
+      "expected_passed": true
+    },
+    {
+      "case_id": "py_add_truth_022",
+      "description": "Truth case: validate() was actually added.",
+      "language": "python",
+      "before": "def main():\n    return 1\n",
+      "after": "def main():\n    return 1\n\ndef validate(x):\n    return x > 0\n",
+      "claims": [
+        {"kind": "add", "symbol": "validate"}
+      ],
+      "expected_passed": true
+    },
+    {
+      "case_id": "py_delete_truth_023",
+      "description": "Truth case: helper() was actually deleted.",
+      "language": "python",
+      "before": "def helper():\n    return 0\n\ndef main():\n    return helper()\n",
+      "after": "def main():\n    return 0\n",
+      "claims": [
+        {"kind": "delete", "symbol": "helper"}
+      ],
+      "expected_passed": true
+    },
+    {
+      "case_id": "py_signature_change_truth_024",
+      "description": "Truth case: handle() actually grew a new parameter.",
+      "language": "python",
+      "before": "def handle(req):\n    return req\n",
+      "after": "def handle(req, timeout=30):\n    return req\n",
+      "claims": [
+        {"kind": "signature_change", "symbol": "handle"}
+      ],
+      "expected_passed": true
+    },
+    {
+      "case_id": "ts_rename_truth_025",
+      "description": "Truth case: TypeScript actual rename.",
+      "language": "typescript",
+      "before": "export function foo(): number {\n  return 1;\n}\n",
+      "after": "export function bar(): number {\n  return 1;\n}\n",
+      "claims": [
+        {"kind": "rename", "symbol": "foo", "new_symbol": "bar"}
+      ],
+      "expected_passed": true
+    },
+    {
+      "case_id": "go_rename_truth_026",
+      "description": "Truth case: Go actual rename Foo→Bar.",
+      "language": "go",
+      "before": "package main\n\nfunc Foo() int { return 1 }\n",
+      "after": "package main\n\nfunc Bar() int { return 1 }\n",
+      "claims": [
+        {"kind": "rename", "symbol": "Foo", "new_symbol": "Bar"}
+      ],
+      "expected_passed": true
+    },
+    {
+      "case_id": "rust_rename_truth_027",
+      "description": "Truth case: Rust actual rename foo→bar.",
+      "language": "rust",
+      "before": "pub fn foo() -> i32 { 1 }\n",
+      "after": "pub fn bar() -> i32 { 1 }\n",
+      "claims": [
+        {"kind": "rename", "symbol": "foo", "new_symbol": "bar"}
+      ],
+      "expected_passed": true
+    }
+  ]
+}
