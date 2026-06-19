@@ -230,6 +230,27 @@ def _compute_diff(before: list[Symbol], after: list[Symbol]) -> StructuralDiff:
     )
 
 
+def _scope_matches(claimed_scope: str, symbol: Symbol) -> bool:
+    """Whether ``symbol`` lives in the scope the claim pinned.
+
+    An empty ``claimed_scope`` is a wildcard: the claim doesn't care where the
+    symbol lives, so any scope matches (this preserves the v0.1 name-only
+    behaviour for unscoped claims). When the claim *does* name a scope —
+    e.g. ``"MyClass"`` for a method, or ``""`` is the module level — the
+    symbol's own ``scope`` must match exactly. This is what stops an agent
+    from claiming ``add MyClass.helper`` and getting a pass when it actually
+    dropped a module-level ``helper`` instead.
+    """
+    if not claimed_scope:
+        return True
+    return symbol.scope == claimed_scope
+
+
+def _scope_label(scope: str) -> str:
+    """Human-readable scope name for mismatch reasons."""
+    return scope or "<module>"
+
+
 def _check_action(
     action: ClaimedAction,
     diff: StructuralDiff,
@@ -252,8 +273,14 @@ def _check_action(
 def _check_rename(action: ClaimedAction, diff: StructuralDiff) -> Mismatch | None:
     if not action.new_symbol:
         return Mismatch(action, "rename claim missing target name (use 'old→new')")
-    old_deleted = any(s.name == action.symbol for s in diff.deleted)
-    new_added = any(s.name == action.new_symbol for s in diff.added)
+    old_deleted = any(
+        s.name == action.symbol and _scope_matches(action.scope, s)
+        for s in diff.deleted
+    )
+    new_added = any(
+        s.name == action.new_symbol and _scope_matches(action.scope, s)
+        for s in diff.added
+    )
     if not old_deleted and not new_added:
         return Mismatch(
             action,
@@ -276,8 +303,20 @@ def _check_rename(action: ClaimedAction, diff: StructuralDiff) -> Mismatch | Non
 
 
 def _check_add(action: ClaimedAction, diff: StructuralDiff) -> Mismatch | None:
-    if any(s.name == action.symbol for s in diff.added):
+    if any(
+        s.name == action.symbol and _scope_matches(action.scope, s)
+        for s in diff.added
+    ):
         return None
+    # A same-named symbol added in a *different* scope is a common silent lie:
+    # the agent claims it added a method on a class but actually added a free
+    # function (or vice versa). Call that out specifically.
+    if action.scope and any(s.name == action.symbol for s in diff.added):
+        return Mismatch(
+            action,
+            f"claimed add: '{action.symbol}' was added, but not in scope "
+            f"'{_scope_label(action.scope)}'",
+        )
     return Mismatch(
         action,
         f"claimed add: '{action.symbol}' not found among newly added symbols",
@@ -287,13 +326,21 @@ def _check_add(action: ClaimedAction, diff: StructuralDiff) -> Mismatch | None:
 def _check_delete(
     action: ClaimedAction, diff: StructuralDiff, after: list[Symbol]
 ) -> Mismatch | None:
-    if any(s.name == action.symbol for s in diff.deleted):
+    if any(
+        s.name == action.symbol and _scope_matches(action.scope, s)
+        for s in diff.deleted
+    ):
         return None
-    if any(s.name == action.symbol for s in after):
+    if any(
+        s.name == action.symbol and _scope_matches(action.scope, s) for s in after
+    ):
+        scope_note = (
+            f" in scope '{_scope_label(action.scope)}'" if action.scope else ""
+        )
         return Mismatch(
             action,
-            f"claimed delete: '{action.symbol}' is still present in the "
-            f"after-blob",
+            f"claimed delete: '{action.symbol}'{scope_note} is still present in "
+            f"the after-blob",
         )
     return Mismatch(
         action,
@@ -305,9 +352,21 @@ def _check_delete(
 def _check_signature_change(
     action: ClaimedAction, diff: StructuralDiff
 ) -> Mismatch | None:
-    changed_names = {a.name for _, a in diff.signature_changed}
-    if action.symbol in changed_names:
+    if any(
+        a.name == action.symbol and _scope_matches(action.scope, a)
+        for _, a in diff.signature_changed
+    ):
         return None
+    # The signature of a same-named symbol changed, but in another scope.
+    if action.scope and any(
+        a.name == action.symbol for _, a in diff.signature_changed
+    ):
+        return Mismatch(
+            action,
+            f"claimed signature_change: signature of '{action.symbol}' in scope "
+            f"'{_scope_label(action.scope)}' is unchanged "
+            f"(a same-named symbol changed elsewhere)",
+        )
     return Mismatch(
         action,
         f"claimed signature_change: signature of '{action.symbol}' is "
@@ -340,6 +399,16 @@ def _check_move(
             action,
             f"claimed move: scope of '{action.symbol}' did not change "
             f"({sorted(before_scopes) or ['<module>']})",
+        )
+    # For ``move``, ``scope`` names the *destination* the agent claims to have
+    # moved the symbol into. If it's set, the symbol must actually land there —
+    # otherwise the agent moved it somewhere it didn't claim.
+    if action.scope and action.scope not in after_scopes:
+        return Mismatch(
+            action,
+            f"claimed move: '{action.symbol}' did not land in scope "
+            f"'{_scope_label(action.scope)}' "
+            f"(now in {sorted(after_scopes) or ['<module>']})",
         )
     return None
 

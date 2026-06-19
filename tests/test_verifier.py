@@ -187,6 +187,109 @@ def test_bench_records_false_negative(tmp_path: Path) -> None:
     assert "labelled_as_lie_but_truth" in result.missed_examples
 
 
+def test_scoped_add_in_wrong_scope_is_caught() -> None:
+    """Claiming `add A.helper` must fail when a module-level helper was added instead."""
+    claim = EditClaim.from_dict(
+        {
+            "before_blob": "class A:\n    pass\n",
+            "after_blob": "class A:\n    pass\n\ndef helper():\n    return 1\n",
+            "language": "python",
+            "claimed_actions": [{"kind": "add", "symbol": "helper", "scope": "A"}],
+        }
+    )
+    verdict = verify(claim)
+    assert not verdict.passed
+    assert any("scope 'A'" in m.reason for m in verdict.mismatches)
+
+
+def test_scoped_add_in_right_scope_passes() -> None:
+    """The same claim must pass when the method really lands inside the class."""
+    claim = EditClaim.from_dict(
+        {
+            "before_blob": "class A:\n    pass\n",
+            "after_blob": "class A:\n    def helper(self):\n        return 1\n",
+            "language": "python",
+            "claimed_actions": [{"kind": "add", "symbol": "helper", "scope": "A"}],
+        }
+    )
+    verdict = verify(claim)
+    assert verdict.passed
+    assert verdict.mismatches == []
+
+
+def test_scoped_delete_distinguishes_method_from_free_function() -> None:
+    """Deleting the module-level twin must not satisfy a scoped method-delete claim."""
+    before = "class A:\n    def foo(self):\n        return 1\n\ndef foo():\n    return 2\n"
+    after = "class A:\n    def foo(self):\n        return 1\n"
+    claim = EditClaim.from_dict(
+        {
+            "before_blob": before,
+            "after_blob": after,
+            "language": "python",
+            "claimed_actions": [{"kind": "delete", "symbol": "foo", "scope": "A"}],
+        }
+    )
+    verdict = verify(claim)
+    assert not verdict.passed
+    assert any("still present" in m.reason for m in verdict.mismatches)
+
+
+def test_unscoped_claim_keeps_name_only_matching() -> None:
+    """An unscoped claim is a wildcard: it must still match on name alone."""
+    claim = EditClaim.from_dict(
+        {
+            "before_blob": "class A:\n    pass\n",
+            "after_blob": "class A:\n    def helper(self):\n        return 1\n",
+            "language": "python",
+            "claimed_actions": [{"kind": "add", "symbol": "helper"}],
+        }
+    )
+    verdict = verify(claim)
+    assert verdict.passed
+
+
+def test_cli_exposes_documented_subcommands() -> None:
+    """The README + mcp.json advertise `mcp-server` and `bench`; they must exist."""
+    from typer.testing import CliRunner
+
+    from diffgate.cli import app
+
+    runner = CliRunner()
+    help_out = runner.invoke(app, ["--help"]).output
+    assert "mcp-server" in help_out
+    assert "bench" in help_out
+    # mcp.json wires `["mcp-server", "--stdio"]`; the option must be accepted.
+    assert runner.invoke(app, ["mcp-server", "--help"]).exit_code == 0
+
+
+def test_cli_bench_reports_catch_rate(tmp_path: Path) -> None:
+    """`diffgate bench traces.jsonl` must score the trace and print catch-rate."""
+    from typer.testing import CliRunner
+
+    from diffgate.cli import app
+
+    trace_path = tmp_path / "traces.jsonl"
+    trace_path.write_text(
+        json.dumps(
+            {
+                "trace_id": "lie",
+                "before_blob": "def foo():\n    return 1\n",
+                "after_blob": "def foo():\n    return 1\n",
+                "language": "python",
+                "claimed_actions": [
+                    {"kind": "rename", "symbol": "foo", "new_symbol": "bar"}
+                ],
+                "was_lie": True,
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    result = CliRunner().invoke(app, ["bench", str(trace_path)])
+    assert result.exit_code == 0
+    assert "Catch-rate" in result.output
+
+
 def test_mcp_tool_handler_round_trip() -> None:
     """The MCP tool body must accept a JSON-ish payload and return a verdict dict."""
     from diffgate.mcp_server import verify_edit_payload

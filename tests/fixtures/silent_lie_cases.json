@@ -9,11 +9,7 @@
       "before": "def foo():\n    return 1\n",
       "after": "def foo():\n    return 1\n",
       "claims": [
-        {
-          "kind": "rename",
-          "symbol": "foo",
-          "new_symbol": "bar"
-        }
+        {"kind": "rename", "symbol": "foo", "new_symbol": "bar"}
       ],
       "expected_passed": false,
       "expected_mismatch_substring": "no-op"
@@ -25,11 +21,7 @@
       "before": "# rename foo\ndef foo():\n    return 1\n",
       "after": "# renamed foo to bar\ndef foo():\n    return 1\n",
       "claims": [
-        {
-          "kind": "rename",
-          "symbol": "foo",
-          "new_symbol": "bar"
-        }
+        {"kind": "rename", "symbol": "foo", "new_symbol": "bar"}
       ],
       "expected_passed": false,
       "expected_mismatch_substring": "no-op"
@@ -41,11 +33,7 @@
       "before": "def foo():\n    return 1\n\ndef caller():\n    return foo() + foo()\n",
       "after": "def foo():\n    return 1\n\ndef caller():\n    return bar() + bar()\n",
       "claims": [
-        {
-          "kind": "rename",
-          "symbol": "foo",
-          "new_symbol": "bar"
-        }
+        {"kind": "rename", "symbol": "foo", "new_symbol": "bar"}
       ],
       "expected_passed": false,
       "expected_mismatch_substring": "no-op"
@@ -57,10 +45,7 @@
       "before": "def helper():\n    return 0\n\ndef main():\n    return helper()\n",
       "after": "def helper():\n    return 0\n\ndef main():\n    return 0\n",
       "claims": [
-        {
-          "kind": "delete",
-          "symbol": "helper"
-        }
+        {"kind": "delete", "symbol": "helper"}
       ],
       "expected_passed": false,
       "expected_mismatch_substring": "still present"
@@ -72,10 +57,7 @@
       "before": "def main():\n    return 1\n",
       "after": "def main():\n    return 1\n",
       "claims": [
-        {
-          "kind": "add",
-          "symbol": "validate"
-        }
+        {"kind": "add", "symbol": "validate"}
       ],
       "expected_passed": false,
       "expected_mismatch_substring": "not found among newly added"
@@ -87,10 +69,7 @@
       "before": "def handle(req):\n    return req\n",
       "after": "def handle(req):\n    # tidy up\n    return req\n",
       "claims": [
-        {
-          "kind": "signature_change",
-          "symbol": "handle"
-        }
+        {"kind": "signature_change", "symbol": "handle"}
       ],
       "expected_passed": false,
       "expected_mismatch_substring": "unchanged"
@@ -102,11 +81,7 @@
       "before": "def helper():\n    return 1\n\nclass ClassX:\n    pass\n",
       "after": "def helper():\n    return 1\n\nclass ClassX:\n    def other(self):\n        return 2\n",
       "claims": [
-        {
-          "kind": "move",
-          "symbol": "helper",
-          "scope": "ClassX"
-        }
+        {"kind": "move", "symbol": "helper", "scope": "ClassX"}
       ],
       "expected_passed": false,
       "expected_mismatch_substring": "scope of 'helper' did not change"
@@ -118,11 +93,7 @@
       "before": "def bar():\n    return 1\n",
       "after": "def foo():\n    return 1\n",
       "claims": [
-        {
-          "kind": "rename",
-          "symbol": "foo",
-          "new_symbol": "bar"
-        }
+        {"kind": "rename", "symbol": "foo", "new_symbol": "bar"}
       ],
       "expected_passed": false,
       "expected_mismatch_substring": "rename"
@@ -134,15 +105,8 @@
       "before": "def foo():\n    return 1\n",
       "after": "def bar():\n    return 1\n",
       "claims": [
-        {
-          "kind": "rename",
-          "symbol": "foo",
-          "new_symbol": "bar"
-        },
-        {
-          "kind": "add",
-          "symbol": "validate"
-        }
+        {"kind": "rename", "symbol": "foo", "new_symbol": "bar"},
+        {"kind": "add", "symbol": "validate"}
       ],
       "expected_passed": false,
       "expected_mismatch_substring": "validate"
@@ -154,12 +118,7 @@
       "before": "class ClassX:\n    def run(self):\n        return 1\n",
       "after": "class ClassX:\n    def run(self):\n        return 1\n",
       "claims": [
-        {
-          "kind": "rename",
-          "symbol": "run",
-          "new_symbol": "start",
-          "scope": "ClassX"
-        }
+        {"kind": "rename", "symbol": "run", "new_symbol": "start", "scope": "ClassX"}
       ],
       "expected_passed": false,
       "expected_mismatch_substring": "no-op"
@@ -171,11 +130,7 @@
       "before": "export function foo(): number {\n  return 1;\n}\n",
       "after": "export function foo(): number {\n  return 1;\n}\n",
       "claims": [
-        {
-          "kind": "rename",
-          "symbol": "foo",
-          "new_symbol": "bar"
-        }
+        {"kind": "rename", "symbol": "foo", "new_symbol": "bar"}
       ],
       "expected_passed": false,
       "expected_mismatch_substring": "no-op"
@@ -187,10 +142,7 @@
       "before": "export class Legacy {\n  run() { return 1; }\n}\n",
       "after": "export class Legacy {\n  run() { return 1; }\n}\n\nexport class Modern {\n  run() { return 2; }\n}\n",
       "claims": [
-        {
-          "kind": "delete",
-          "symbol": "Legacy"
-        }
+        {"kind": "delete", "symbol": "Legacy"}
       ],
       "expected_passed": false,
       "expected_mismatch_substring": "still present"
@@ -202,10 +154,7 @@
       "before": "export function main(): void {}\n",
       "after": "// added helper\nexport function main(): void {}\n",
       "claims": [
-        {
-          "kind": "add",
-          "symbol": "helper"
-        }
+        {"kind": "add", "symbol": "helper"}
       ],
       "expected_passed": false,
       "expected_mismatch_substring": "not found among newly added"
@@ -217,11 +166,7 @@
       "before": "package main\n\nfunc Foo() int { return 1 }\n",
       "after": "package main\n\nfunc Foo() int { return 1 }\n",
       "claims": [
-        {
-          "kind": "rename",
-          "symbol": "Foo",
-          "new_symbol": "Bar"
-        }
+        {"kind": "rename", "symbol": "Foo", "new_symbol": "Bar"}
       ],
       "expected_passed": false,
       "expected_mismatch_substring": "no-op"
@@ -233,10 +178,7 @@
       "before": "package main\n\ntype LegacyType struct{ x int }\n",
       "after": "package main\n\ntype LegacyType struct{ x int }\n\ntype ModernType struct{ y int }\n",
       "claims": [
-        {
-          "kind": "delete",
-          "symbol": "LegacyType"
-        }
+        {"kind": "delete", "symbol": "LegacyType"}
       ],
       "expected_passed": false,
       "expected_mismatch_substring": "still present"
@@ -248,11 +190,7 @@
       "before": "pub fn foo() -> i32 { 1 }\n",
       "after": "pub fn foo() -> i32 { 1 }\n",
       "claims": [
-        {
-          "kind": "rename",
-          "symbol": "foo",
-          "new_symbol": "bar"
-        }
+        {"kind": "rename", "symbol": "foo", "new_symbol": "bar"}
       ],
       "expected_passed": false,
       "expected_mismatch_substring": "no-op"
@@ -264,10 +202,7 @@
       "before": "pub fn main_entry() {}\n",
       "after": "pub fn main_entry() {}\n",
       "claims": [
-        {
-          "kind": "add",
-          "symbol": "validate"
-        }
+        {"kind": "add", "symbol": "validate"}
       ],
       "expected_passed": false,
       "expected_mismatch_substring": "not found among newly added"
@@ -279,11 +214,7 @@
       "before": "def foo():\n    return 1\n",
       "after": "def baz():\n    return 1\n",
       "claims": [
-        {
-          "kind": "rename",
-          "symbol": "foo",
-          "new_symbol": "bar"
-        }
+        {"kind": "rename", "symbol": "foo", "new_symbol": "bar"}
       ],
       "expected_passed": false,
       "expected_mismatch_substring": "target 'bar' not found"
@@ -295,10 +226,7 @@
       "before": "def fetch(url):\n    timeout = 5\n    return (url, timeout)\n",
       "after": "def fetch(url):\n    timeout = 10\n    return (url, timeout)\n",
       "claims": [
-        {
-          "kind": "signature_change",
-          "symbol": "fetch"
-        }
+        {"kind": "signature_change", "symbol": "fetch"}
       ],
       "expected_passed": false,
       "expected_mismatch_substring": "unchanged"
@@ -310,10 +238,7 @@
       "before": "def main():\n    return 1\n",
       "after": "def main():\n    return 1\n",
       "claims": [
-        {
-          "kind": "delete",
-          "symbol": "phantom_helper"
-        }
+        {"kind": "delete", "symbol": "phantom_helper"}
       ],
       "expected_passed": false,
       "expected_mismatch_substring": "not present"
@@ -325,11 +250,7 @@
       "before": "def foo():\n    return 1\n",
       "after": "def bar():\n    return 1\n",
       "claims": [
-        {
-          "kind": "rename",
-          "symbol": "foo",
-          "new_symbol": "bar"
-        }
+        {"kind": "rename", "symbol": "foo", "new_symbol": "bar"}
       ],
       "expected_passed": true
     },
@@ -340,10 +261,7 @@
       "before": "def main():\n    return 1\n",
       "after": "def main():\n    return 1\n\ndef validate(x):\n    return x > 0\n",
       "claims": [
-        {
-          "kind": "add",
-          "symbol": "validate"
-        }
+        {"kind": "add", "symbol": "validate"}
       ],
       "expected_passed": true
     },
@@ -354,10 +272,7 @@
       "before": "def helper():\n    return 0\n\ndef main():\n    return helper()\n",
       "after": "def main():\n    return 0\n",
       "claims": [
-        {
-          "kind": "delete",
-          "symbol": "helper"
-        }
+        {"kind": "delete", "symbol": "helper"}
       ],
       "expected_passed": true
     },
@@ -368,10 +283,7 @@
       "before": "def handle(req):\n    return req\n",
       "after": "def handle(req, timeout=30):\n    return req\n",
       "claims": [
-        {
-          "kind": "signature_change",
-          "symbol": "handle"
-        }
+        {"kind": "signature_change", "symbol": "handle"}
       ],
       "expected_passed": true
     },
@@ -382,11 +294,7 @@
       "before": "export function foo(): number {\n  return 1;\n}\n",
       "after": "export function bar(): number {\n  return 1;\n}\n",
       "claims": [
-        {
-          "kind": "rename",
-          "symbol": "foo",
-          "new_symbol": "bar"
-        }
+        {"kind": "rename", "symbol": "foo", "new_symbol": "bar"}
       ],
       "expected_passed": true
     },
@@ -397,11 +305,7 @@
       "before": "package main\n\nfunc Foo() int { return 1 }\n",
       "after": "package main\n\nfunc Bar() int { return 1 }\n",
       "claims": [
-        {
-          "kind": "rename",
-          "symbol": "Foo",
-          "new_symbol": "Bar"
-        }
+        {"kind": "rename", "symbol": "Foo", "new_symbol": "Bar"}
       ],
       "expected_passed": true
     },
@@ -412,11 +316,88 @@
       "before": "pub fn foo() -> i32 { 1 }\n",
       "after": "pub fn bar() -> i32 { 1 }\n",
       "claims": [
-        {
-          "kind": "rename",
-          "symbol": "foo",
-          "new_symbol": "bar"
-        }
+        {"kind": "rename", "symbol": "foo", "new_symbol": "bar"}
+      ],
+      "expected_passed": true
+    },
+    {
+      "case_id": "py_add_wrong_scope_028",
+      "description": "Scope lie: agent claims it added a method A.helper, but it actually dropped a module-level helper(). A is untouched.",
+      "language": "python",
+      "before": "class A:\n    pass\n",
+      "after": "class A:\n    pass\n\ndef helper():\n    return 1\n",
+      "claims": [
+        {"kind": "add", "symbol": "helper", "scope": "A"}
+      ],
+      "expected_passed": false,
+      "expected_mismatch_substring": "not in scope 'A'"
+    },
+    {
+      "case_id": "py_delete_wrong_scope_029",
+      "description": "Scope lie: agent claims it deleted method A.foo, but A.foo is still present — only the module-level foo() was removed.",
+      "language": "python",
+      "before": "class A:\n    def foo(self):\n        return 1\n\ndef foo():\n    return 2\n",
+      "after": "class A:\n    def foo(self):\n        return 1\n",
+      "claims": [
+        {"kind": "delete", "symbol": "foo", "scope": "A"}
+      ],
+      "expected_passed": false,
+      "expected_mismatch_substring": "in scope 'A' is still present"
+    },
+    {
+      "case_id": "py_signature_wrong_scope_030",
+      "description": "Scope lie: agent claims it changed the signature of method A.run, but only the module-level run() got a new parameter; A.run is untouched.",
+      "language": "python",
+      "before": "class A:\n    def run(self):\n        return 1\n\ndef run():\n    return 2\n",
+      "after": "class A:\n    def run(self):\n        return 1\n\ndef run(x):\n    return 2\n",
+      "claims": [
+        {"kind": "signature_change", "symbol": "run", "scope": "A"}
+      ],
+      "expected_passed": false,
+      "expected_mismatch_substring": "in scope 'A' is unchanged"
+    },
+    {
+      "case_id": "py_rename_wrong_scope_031",
+      "description": "Scope lie: agent claims it renamed method A.run→start, but A.run is untouched — only the module-level run() was renamed to start().",
+      "language": "python",
+      "before": "class A:\n    def run(self):\n        return 1\n\ndef run():\n    return 2\n",
+      "after": "class A:\n    def run(self):\n        return 1\n\ndef start():\n    return 2\n",
+      "claims": [
+        {"kind": "rename", "symbol": "run", "new_symbol": "start", "scope": "A"}
+      ],
+      "expected_passed": false,
+      "expected_mismatch_substring": "no-op"
+    },
+    {
+      "case_id": "py_add_scope_truth_032",
+      "description": "Scope truth: method A.helper was genuinely added inside class A.",
+      "language": "python",
+      "before": "class A:\n    pass\n",
+      "after": "class A:\n    def helper(self):\n        return 1\n",
+      "claims": [
+        {"kind": "add", "symbol": "helper", "scope": "A"}
+      ],
+      "expected_passed": true
+    },
+    {
+      "case_id": "py_delete_scope_truth_033",
+      "description": "Scope truth: method A.foo was genuinely deleted while the module-level foo() stays.",
+      "language": "python",
+      "before": "class A:\n    def foo(self):\n        return 1\n\ndef foo():\n    return 2\n",
+      "after": "class A:\n    pass\n\ndef foo():\n    return 2\n",
+      "claims": [
+        {"kind": "delete", "symbol": "foo", "scope": "A"}
+      ],
+      "expected_passed": true
+    },
+    {
+      "case_id": "py_move_into_scope_truth_034",
+      "description": "Scope truth: helper() was genuinely moved into class A as a method.",
+      "language": "python",
+      "before": "def helper(self):\n    return 1\n\nclass A:\n    pass\n",
+      "after": "class A:\n    def helper(self):\n        return 1\n",
+      "claims": [
+        {"kind": "move", "symbol": "helper", "scope": "A"}
       ],
       "expected_passed": true
     }
