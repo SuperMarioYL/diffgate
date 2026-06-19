@@ -108,6 +108,22 @@ EditClaim {
 
 `cli.py` and `mcp_server.py` are thin wrappers over the same `verifier.verify(edit_claim) → Verdict`. No daemon, no DB, no network calls.
 
+### Scope-aware matching — v0.2.0
+
+The `scope` field in `claimed_actions` is now strictly enforced. Claiming
+`add MyClass.helper` only passes when `helper` really lands inside `MyClass` —
+an agent that added a module-level `helper()` instead no longer satisfies it.
+This closes a common silent lie: conflating a class method with a same-named
+free function.
+
+```bash
+# Agent claims it added method helper to class A, but only added a free function → exit_code 1
+diffgate verify --before a.py --after a.py.new --claim "add helper in A"
+```
+
+An empty `scope` stays a wildcard and matches by symbol name (identical to v0.1
+behaviour), so existing unscoped claims are unaffected.
+
 ## vs the closest neighbors
 
 Honest comparison — DiffGate is narrow on purpose:
@@ -137,9 +153,10 @@ Full config in `diffgate --help`.
 ## Roadmap
 
 - [x] **m1 — `diffgate verify`**: CLI + Python/TS parsers + 20 hand-crafted silent-lie fixtures all detected
-- [ ] **m2 — `diffgate mcp-server`**: MCP `verify_edit` tool, plug-and-play with Claude Code / Cursor
-- [ ] **m3 — `diffgate bench`**: replay 200 traces, emit precision/recall as a README badge
-- [ ] **v0.2 — DiffGate Cloud** (paid): cross-team catch-rate aggregation, SSO, Prometheus exporter; Java / C++ parsers
+- [x] **m2 — `diffgate mcp-server`**: MCP `verify_edit` tool, plug-and-play with Claude Code / Cursor
+- [x] **m3 — `diffgate bench`**: replay traces, emit precision/recall
+- [x] **v0.2 — scope-aware verification**: strict `scope` matching that catches "class method vs same-named free function" confusion
+- [ ] **DiffGate Cloud** (paid): cross-team catch-rate aggregation, SSO, Prometheus exporter; Java / C++ parsers
 - [ ] **v0.3 — framework integrations**: official optional gate in LangGraph / Mastra / Autogen
 
 ## Pricing

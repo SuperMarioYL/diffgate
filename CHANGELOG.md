@@ -6,13 +6,34 @@ All notable changes to DiffGate are documented here. Format follows
 
 ## [Unreleased]
 
-### Added
-- Package scaffold: `pyproject.toml`, MIT `LICENSE`, `.gitignore`, lazy
-  `src/diffgate/__init__.py` entry point.
-- Stack pinned to Python 3.12+ with `tree-sitter`, `tree-sitter-language-pack`,
-  `typer`, `mcp`, and `rich`.
+## [0.2.0]
 
-## [0.1.0] — planned
+First real feature iteration: claims can now pin a containing **scope**, and
+the CLI surface that the README has always advertised is finally wired up.
+
+### Added
+- **Scope-aware claim matching.** Every claim kind (`add`, `delete`, `rename`,
+  `signature_change`, `move`) now honours the `scope` field. Claiming
+  `add MyClass.helper` only passes when the method really lands inside
+  `MyClass` — adding a free-standing `helper()` no longer satisfies it. An
+  empty `scope` stays a wildcard, so existing name-only claims behave exactly
+  as before. New mismatch reasons call out scope mismatches explicitly
+  (e.g. `'helper' was added, but not in scope 'MyClass'`).
+- `diffgate mcp-server --stdio` and `diffgate bench <traces.jsonl>` are now
+  real CLI subcommands. They were documented in the README and the `mcp.json`
+  snippet but were previously only reachable via `python -m diffgate.…`;
+  copying the documented config now works as written.
+- Eight new fixtures plus focused unit tests covering scope lies, scope
+  truths, and the unscoped wildcard path.
+
+### Fixed
+- **Silent-lie false negatives from scope confusion.** Before this release the
+  verifier matched claimed symbols by *name only*, so an agent that claimed it
+  edited a method on a class but actually touched a same-named module-level
+  function (or vice versa) slipped through as a pass. The structural gate now
+  distinguishes the two.
+
+## [0.1.0]
 
 First public release covering the m1 milestone:
 
@@ -22,11 +43,6 @@ First public release covering the m1 milestone:
 - Claim kinds: `rename`, `add`, `delete`.
 - ≥20 hand-crafted silent-lie fixtures in `tests/fixtures/silent_lie_cases.json`.
 
-### Roadmap
-- **m2_mcp_loop_gate** — `diffgate mcp-server --stdio` exposing a `verify_edit`
-  tool so Claude Code / Cursor can gate the agent loop on every edit.
-- **m3_replay_bench** — `diffgate bench traces.jsonl` to replay agent edit
-  traces and report precision/recall against ground-truth lies.
-
-[Unreleased]: https://github.com/supermario-leo/diffgate/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/supermario-leo/diffgate/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/supermario-leo/diffgate/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/supermario-leo/diffgate/releases/tag/v0.1.0
