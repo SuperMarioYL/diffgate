@@ -18,6 +18,7 @@
 ## Table of contents
 
 - [Why this exists](#why-this-exists)
+- [Architecture](#architecture)
 - [Quickstart](#quickstart)
 - [Demo](#demo)
 - [How it works](#how-it-works)
@@ -35,6 +36,18 @@ Tool-use loops became the default Coding Agent UX in late 2025 — Cursor compos
 ## Why this exists
 
 Coding agents — Cursor, Claude Code, Codex, GPT-5.5 — frequently report `success` on edit steps when the diff is empty, in the wrong file, or only promised in a comment. No mainstream agent framework performs structural verification after the edit. DiffGate sits between the agent's tool call and the next loop iteration: it parses the AST before and after, compares against the agent's own `claimed_actions`, and returns `exit_code=1` on mismatch so the loop retries. A class of silent lies becomes loud, retry-triggering errors.
+
+## <img src="https://api.iconify.design/tabler:topology-star-3.svg?color=%230071E3&width=24" height="22" align="absmiddle" alt=""> Architecture
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="./assets/atlas-dark.svg">
+    <source media="(prefers-color-scheme: light)" srcset="./assets/atlas-light.svg">
+    <img src="./assets/atlas-light.svg" width="880" alt="A coding agent emits an EditClaim (before/after blob + claimed actions); DiffGate parses both sides with tree-sitter and matches the claims against the AST diff; the Verdict either passes the loop (exit 0) or returns exit_code 1 as structural backpressure that retries the agent">
+  </picture>
+</p>
+
+A coding agent (Cursor / Claude Code / Codex / LangGraph) emits an **`EditClaim`** after every edit — the before-blob, the after-blob, and the actions it claims it performed. `cli.py` and `mcp_server.py` are two thin shells over the same `verifier.verify(EditClaim) → Verdict`: the core parses both sides into an AST with tree-sitter (Python / TypeScript / Go / Rust) and aligns each claim against the real structural diff. The **Verdict** either passes the loop through (`exit 0`) or returns `exit_code=1` as **structural backpressure**, bouncing the agent back to retry with the mismatch reasons attached — all local, offline and deterministic, with no daemon, no DB and no network calls.
 
 ## Quickstart
 
@@ -56,9 +69,13 @@ Drop these three lines into `~/.config/claude-code/mcp.json` (or the Cursor equi
 
 Full hook walkthrough: [`examples/claude_code_hook.md`](./examples/claude_code_hook.md). Cursor integration: [`examples/cursor_integration.md`](./examples/cursor_integration.md).
 
-## Demo
+## <img src="https://api.iconify.design/tabler:photo.svg?color=%230071E3&width=24" height="22" align="absmiddle" alt=""> Demo
 
-> 📼 Demo coming soon (see [assets/README.md](./assets/README.md))
+<p align="center">
+  <img src="./assets/demo.gif" alt="diffgate verify terminal demo: Claude Code claims a rename but ships an empty diff, DiffGate returns exit_code 1" width="820" />
+</p>
+
+<sub>↑ Recorded in the terminal (rendered in CI by <a href="https://github.com/charmbracelet/vhs">vhs</a> from <a href="./docs/demo.tape">docs/demo.tape</a>, regenerated on every tag).</sub>
 
 60 seconds: Claude Code claims it renamed `foo` to `bar` across `module_x.py` → DiffGate parses both blobs → AST shows zero renames → `exit_code=1` → agent retries with the failure context.
 
@@ -131,7 +148,7 @@ Full config in `diffgate --help`.
 
 **Paid product (v0.2) — DiffGate Cloud.** A hosted aggregation dashboard for internal Dev Platform teams (ByteDance, Alibaba, Tencent, Meituan, JD-class orgs). Aggregates per-engineer / per-team agent catch-rates, ships with SSO, audit log, Prometheus exporter, and prioritized Java / C++ parsers. Indicative price ~**¥1,200 / engineer / year (≈ USD 165)**, volume-tiered — roughly one-third of a Cursor Business seat, positioned as "the safety net for the seat you already pay for." Pilot path: 14-day free trial → day-14 readout (aggregated catch-rate + estimated engineer-hours saved) → annual contract from ¥100k minimum, scaling by seats. Billing via Stripe (USD) + Alipay International / WeChat Merchant (CNY).
 
-If you run platform engineering at a large Chinese tech org, email `itleiyu@gmail.com` for a pilot slot.
+If you run platform engineering at a large Chinese tech org, email `leo.stack@outlook.com` for a pilot slot.
 
 ## License & contributing
 
@@ -142,9 +159,9 @@ MIT — see [LICENSE](./LICENSE). False positives, missed catches, ergonomics �
 ```
 DiffGate — the structural verification gate for your Coding Agent.
 Drops into the Agentic loop and turns "I fixed it" lies into exit-code 1.
-OSS, MCP-native. https://github.com/<your-org>/diffgate
+OSS, MCP-native. https://github.com/SuperMarioYL/diffgate
 ```
 
 ---
 
-<sub>This repo was generated from the [ai-radar](https://github.com/itleiyu/ai-radar) scan `scan-2026-05-25-1815`, winner `need_t3ver002`. Plan artifacts live under `workspace/projects/scan-2026-05-25-1815/F-plan/winner-t3ver002/`.</sub>
+<sub>MIT © 2026 SuperMarioYL</sub>

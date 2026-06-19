@@ -1,0 +1,65 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 380" width="880" height="380"
+     font-family="Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', sans-serif"
+     role="img" aria-label="DiffGate architecture: a coding agent emits an EditClaim (before/after blob + claimed actions) into DiffGate; the verifier core parses both blobs with tree-sitter and matches claims against the AST diff; a Verdict either passes the loop or returns exit_code 1 as structural backpressure that retries the agent">
+  <defs>
+    <marker id="ah-l" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#B9B9C2"/></marker>
+    <marker id="ah-r" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#D43A3A"/></marker>
+  </defs>
+  <rect x="0" y="0" width="880" height="380" fill="#F5F5F7"/>
+
+  <!-- local / offline frame -->
+  <rect x="24" y="60" width="832" height="240" rx="18" fill="none" stroke="#5E5CE6" stroke-opacity="0.40" stroke-width="1.5" stroke-dasharray="6 5"/>
+  <text x="44" y="82" font-size="13" font-weight="600" fill="#4B3FC4">local · offline · deterministic — no daemon, no DB, no network</text>
+
+  <!-- forward connectors -->
+  <g stroke="#C9C9D0" stroke-width="1.6" fill="none">
+    <line x1="214" y1="178" x2="282" y2="178" marker-end="url(#ah-l)"/>
+    <line x1="606" y1="178" x2="676" y2="178" marker-end="url(#ah-l)"/>
+  </g>
+
+  <!-- Coding Agent (purple) -->
+  <g>
+    <rect x="44" y="108" width="170" height="140" rx="15" fill="#5E5CE6" fill-opacity="0.10" stroke="#5E5CE6" stroke-width="1.5"/>
+    <text x="129" y="134" text-anchor="middle" font-size="15" font-weight="600" fill="#4B3FC4">Coding Agent</text>
+    <text x="129" y="153" text-anchor="middle" font-size="11" fill="#6E6E73">Cursor · Claude Code</text>
+    <text x="129" y="168" text-anchor="middle" font-size="11" fill="#6E6E73">Codex · LangGraph</text>
+    <rect x="62" y="182" width="134" height="50" rx="9" fill="#5E5CE6" fill-opacity="0.08" stroke="#5E5CE6" stroke-width="1.1"/>
+    <text x="129" y="201" text-anchor="middle" font-size="11.5" font-weight="600" fill="#4B3FC4">tool_call</text>
+    <text x="129" y="218" text-anchor="middle" font-size="10.5" fill="#6E6E73">before · after · claims</text>
+  </g>
+
+  <!-- DiffGate gate (blue) -->
+  <g>
+    <rect x="282" y="108" width="324" height="140" rx="15" fill="#0071E3" fill-opacity="0.10" stroke="#0071E3" stroke-width="1.6"/>
+    <text x="444" y="132" text-anchor="middle" font-size="16" font-weight="700" fill="#0A4F9E">DiffGate — structural gate</text>
+
+    <!-- two thin shells -->
+    <rect x="300" y="146" width="138" height="34" rx="9" fill="#FFFFFF" fill-opacity="0.6" stroke="#0071E3" stroke-width="1.1"/>
+    <text x="369" y="167" text-anchor="middle" font-size="11.5" fill="#234"><tspan font-weight="700" fill="#0A4F9E">cli.py</tspan> · verify</text>
+    <rect x="448" y="146" width="140" height="34" rx="9" fill="#FFFFFF" fill-opacity="0.6" stroke="#0071E3" stroke-width="1.1"/>
+    <text x="518" y="167" text-anchor="middle" font-size="11.5" fill="#234"><tspan font-weight="700" fill="#0A4F9E">mcp_server</tspan> · verify_edit</text>
+
+    <!-- verifier core -->
+    <rect x="300" y="188" width="288" height="48" rx="10" fill="#0071E3" fill-opacity="0.12" stroke="#0071E3" stroke-width="1.3"/>
+    <text x="444" y="206" text-anchor="middle" font-size="12.5" font-weight="700" fill="#0A4F9E">verifier.verify(EditClaim) → Verdict</text>
+    <text x="444" y="225" text-anchor="middle" font-size="10.5" fill="#3a4a5a">tree-sitter parse (py · ts · go · rs) · claim ↔ AST-diff matcher</text>
+  </g>
+
+  <!-- Verdict (green) -->
+  <g>
+    <rect x="676" y="108" width="170" height="140" rx="15" fill="#10A37F" fill-opacity="0.08" stroke="#10A37F" stroke-width="1.5"/>
+    <text x="761" y="134" text-anchor="middle" font-size="15" font-weight="600" fill="#0B6B53">Verdict</text>
+    <rect x="694" y="148" width="134" height="42" rx="9" fill="#10A37F" fill-opacity="0.16" stroke="#10A37F" stroke-width="1.2"/>
+    <text x="761" y="166" text-anchor="middle" font-size="11.5" font-weight="600" fill="#0B6B53">passed: true</text>
+    <text x="761" y="181" text-anchor="middle" font-size="10.5" fill="#0B6B53">exit 0 · loop continues</text>
+    <rect x="694" y="196" width="134" height="42" rx="9" fill="#D43A3A" fill-opacity="0.12" stroke="#D43A3A" stroke-width="1.2"/>
+    <text x="761" y="214" text-anchor="middle" font-size="11.5" font-weight="600" fill="#B02A2A">passed: false</text>
+    <text x="761" y="229" text-anchor="middle" font-size="10.5" fill="#B02A2A">exit 1 · mismatches</text>
+  </g>
+
+  <!-- backpressure retry loop: Verdict(fail) -> Agent -->
+  <g stroke="#D43A3A" stroke-width="1.6" fill="none" stroke-dasharray="5 4">
+    <path d="M761 248 L761 330 L129 330 L129 248" marker-end="url(#ah-r)"/>
+  </g>
+  <text x="445" y="354" text-anchor="middle" font-size="12" font-weight="600" fill="#B02A2A">structural backpressure — exit_code 1 forces the agent to retry with mismatch reasons</text>
+</svg>
