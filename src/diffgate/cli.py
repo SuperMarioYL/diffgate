@@ -196,6 +196,64 @@ def verify_cmd(
     raise typer.Exit(code=0 if verdict.passed else 1)
 
 
+@app.command("mcp-server")
+def mcp_server_cmd(
+    stdio: bool = typer.Option(
+        True,
+        "--stdio/--no-stdio",
+        help="Serve the MCP tool over stdio (the only supported transport).",
+    ),
+) -> None:
+    """Run the DiffGate MCP server so an agent loop can gate on every edit.
+
+    Register it in ``mcp.json`` with
+    ``{"command": "diffgate", "args": ["mcp-server", "--stdio"]}`` and the
+    agent gains a single ``verify_edit`` tool. The transport is stdio so the
+    gate stays fully local — no daemon, no network.
+    """
+    if not stdio:
+        _console_stderr.print(
+            "[bold red]error:[/bold red] only --stdio transport is supported."
+        )
+        raise typer.Exit(code=2)
+    # Imported lazily so `diffgate verify` doesn't pay the FastMCP import cost.
+    from .mcp_server import run_stdio  # noqa: PLC0415
+
+    run_stdio()
+
+
+@app.command("bench")
+def bench_cmd(
+    traces: Path = typer.Argument(
+        ...,
+        exists=True,
+        file_okay=True,
+        dir_okay=False,
+        readable=True,
+        help="JSONL trace file of agent edits with ground-truth `was_lie` labels.",
+    ),
+    json_output: bool = typer.Option(
+        False,
+        "--json",
+        help="Emit machine-readable JSON instead of the human report.",
+    ),
+) -> None:
+    """Replay a JSONL edit trace and report catch-rate vs. ground truth.
+
+    Each line is an ``EditClaim`` plus a ``was_lie`` label; DiffGate's verdict
+    is scored against it to produce precision / recall / catch-rate — exactly
+    the numbers the README badge quotes.
+    """
+    from .bench import render_report, run_bench  # noqa: PLC0415
+
+    result = run_bench(traces)
+    if json_output:
+        json.dump(result.to_dict(), sys.stdout, indent=2, ensure_ascii=False)
+        sys.stdout.write("\n")
+    else:
+        _console_stdout.print(render_report(result))
+
+
 def _detect_language(path: Path, override: str) -> str:
     if override and override.lower() != "auto":
         return override.lower()
