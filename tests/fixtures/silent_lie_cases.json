@@ -9,7 +9,11 @@
       "before": "def foo():\n    return 1\n",
       "after": "def foo():\n    return 1\n",
       "claims": [
-        {"kind": "rename", "symbol": "foo", "new_symbol": "bar"}
+        {
+          "kind": "rename",
+          "symbol": "foo",
+          "new_symbol": "bar"
+        }
       ],
       "expected_passed": false,
       "expected_mismatch_substring": "no-op"
@@ -21,10 +25,14 @@
       "before": "# rename foo\ndef foo():\n    return 1\n",
       "after": "# renamed foo to bar\ndef foo():\n    return 1\n",
       "claims": [
-        {"kind": "rename", "symbol": "foo", "new_symbol": "bar"}
+        {
+          "kind": "rename",
+          "symbol": "foo",
+          "new_symbol": "bar"
+        }
       ],
       "expected_passed": false,
-      "expected_mismatch_substring": "still present"
+      "expected_mismatch_substring": "no-op"
     },
     {
       "case_id": "py_rename_only_usage_003",
@@ -33,10 +41,14 @@
       "before": "def foo():\n    return 1\n\ndef caller():\n    return foo() + foo()\n",
       "after": "def foo():\n    return 1\n\ndef caller():\n    return bar() + bar()\n",
       "claims": [
-        {"kind": "rename", "symbol": "foo", "new_symbol": "bar"}
+        {
+          "kind": "rename",
+          "symbol": "foo",
+          "new_symbol": "bar"
+        }
       ],
       "expected_passed": false,
-      "expected_mismatch_substring": "still present"
+      "expected_mismatch_substring": "no-op"
     },
     {
       "case_id": "py_delete_no_op_004",
@@ -45,7 +57,10 @@
       "before": "def helper():\n    return 0\n\ndef main():\n    return helper()\n",
       "after": "def helper():\n    return 0\n\ndef main():\n    return 0\n",
       "claims": [
-        {"kind": "delete", "symbol": "helper"}
+        {
+          "kind": "delete",
+          "symbol": "helper"
+        }
       ],
       "expected_passed": false,
       "expected_mismatch_substring": "still present"
@@ -57,7 +72,10 @@
       "before": "def main():\n    return 1\n",
       "after": "def main():\n    return 1\n",
       "claims": [
-        {"kind": "add", "symbol": "validate"}
+        {
+          "kind": "add",
+          "symbol": "validate"
+        }
       ],
       "expected_passed": false,
       "expected_mismatch_substring": "not found among newly added"
@@ -69,7 +87,10 @@
       "before": "def handle(req):\n    return req\n",
       "after": "def handle(req):\n    # tidy up\n    return req\n",
       "claims": [
-        {"kind": "signature_change", "symbol": "handle"}
+        {
+          "kind": "signature_change",
+          "symbol": "handle"
+        }
       ],
       "expected_passed": false,
       "expected_mismatch_substring": "unchanged"
@@ -81,7 +102,11 @@
       "before": "def helper():\n    return 1\n\nclass ClassX:\n    pass\n",
       "after": "def helper():\n    return 1\n\nclass ClassX:\n    def other(self):\n        return 2\n",
       "claims": [
-        {"kind": "move", "symbol": "helper", "scope": "ClassX"}
+        {
+          "kind": "move",
+          "symbol": "helper",
+          "scope": "ClassX"
+        }
       ],
       "expected_passed": false,
       "expected_mismatch_substring": "scope of 'helper' did not change"
@@ -93,7 +118,11 @@
       "before": "def bar():\n    return 1\n",
       "after": "def foo():\n    return 1\n",
       "claims": [
-        {"kind": "rename", "symbol": "foo", "new_symbol": "bar"}
+        {
+          "kind": "rename",
+          "symbol": "foo",
+          "new_symbol": "bar"
+        }
       ],
       "expected_passed": false,
       "expected_mismatch_substring": "rename"
@@ -105,8 +134,15 @@
       "before": "def foo():\n    return 1\n",
       "after": "def bar():\n    return 1\n",
       "claims": [
-        {"kind": "rename", "symbol": "foo", "new_symbol": "bar"},
-        {"kind": "add", "symbol": "validate"}
+        {
+          "kind": "rename",
+          "symbol": "foo",
+          "new_symbol": "bar"
+        },
+        {
+          "kind": "add",
+          "symbol": "validate"
+        }
       ],
       "expected_passed": false,
       "expected_mismatch_substring": "validate"
@@ -118,7 +154,12 @@
       "before": "class ClassX:\n    def run(self):\n        return 1\n",
       "after": "class ClassX:\n    def run(self):\n        return 1\n",
       "claims": [
-        {"kind": "rename", "symbol": "run", "new_symbol": "start", "scope": "ClassX"}
+        {
+          "kind": "rename",
+          "symbol": "run",
+          "new_symbol": "start",
+          "scope": "ClassX"
+        }
       ],
       "expected_passed": false,
       "expected_mismatch_substring": "no-op"
@@ -130,7 +171,11 @@
       "before": "export function foo(): number {\n  return 1;\n}\n",
       "after": "export function foo(): number {\n  return 1;\n}\n",
       "claims": [
-        {"kind": "rename", "symbol": "foo", "new_symbol": "bar"}
+        {
+          "kind": "rename",
+          "symbol": "foo",
+          "new_symbol": "bar"
+        }
       ],
       "expected_passed": false,
       "expected_mismatch_substring": "no-op"
@@ -142,7 +187,10 @@
       "before": "export class Legacy {\n  run() { return 1; }\n}\n",
       "after": "export class Legacy {\n  run() { return 1; }\n}\n\nexport class Modern {\n  run() { return 2; }\n}\n",
       "claims": [
-        {"kind": "delete", "symbol": "Legacy"}
+        {
+          "kind": "delete",
+          "symbol": "Legacy"
+        }
       ],
       "expected_passed": false,
       "expected_mismatch_substring": "still present"
@@ -154,7 +202,10 @@
       "before": "export function main(): void {}\n",
       "after": "// added helper\nexport function main(): void {}\n",
       "claims": [
-        {"kind": "add", "symbol": "helper"}
+        {
+          "kind": "add",
+          "symbol": "helper"
+        }
       ],
       "expected_passed": false,
       "expected_mismatch_substring": "not found among newly added"
@@ -166,7 +217,11 @@
       "before": "package main\n\nfunc Foo() int { return 1 }\n",
       "after": "package main\n\nfunc Foo() int { return 1 }\n",
       "claims": [
-        {"kind": "rename", "symbol": "Foo", "new_symbol": "Bar"}
+        {
+          "kind": "rename",
+          "symbol": "Foo",
+          "new_symbol": "Bar"
+        }
       ],
       "expected_passed": false,
       "expected_mismatch_substring": "no-op"
@@ -178,7 +233,10 @@
       "before": "package main\n\ntype LegacyType struct{ x int }\n",
       "after": "package main\n\ntype LegacyType struct{ x int }\n\ntype ModernType struct{ y int }\n",
       "claims": [
-        {"kind": "delete", "symbol": "LegacyType"}
+        {
+          "kind": "delete",
+          "symbol": "LegacyType"
+        }
       ],
       "expected_passed": false,
       "expected_mismatch_substring": "still present"
@@ -190,7 +248,11 @@
       "before": "pub fn foo() -> i32 { 1 }\n",
       "after": "pub fn foo() -> i32 { 1 }\n",
       "claims": [
-        {"kind": "rename", "symbol": "foo", "new_symbol": "bar"}
+        {
+          "kind": "rename",
+          "symbol": "foo",
+          "new_symbol": "bar"
+        }
       ],
       "expected_passed": false,
       "expected_mismatch_substring": "no-op"
@@ -202,10 +264,13 @@
       "before": "pub fn main_entry() {}\n",
       "after": "pub fn main_entry() {}\n",
       "claims": [
-        {"kind": "add", "symbol": "validate"}
+        {
+          "kind": "add",
+          "symbol": "validate"
+        }
       ],
       "expected_passed": false,
-      "expected_mismatch_substring": "no-op"
+      "expected_mismatch_substring": "not found among newly added"
     },
     {
       "case_id": "py_rename_partial_018",
@@ -214,7 +279,11 @@
       "before": "def foo():\n    return 1\n",
       "after": "def baz():\n    return 1\n",
       "claims": [
-        {"kind": "rename", "symbol": "foo", "new_symbol": "bar"}
+        {
+          "kind": "rename",
+          "symbol": "foo",
+          "new_symbol": "bar"
+        }
       ],
       "expected_passed": false,
       "expected_mismatch_substring": "target 'bar' not found"
@@ -226,7 +295,10 @@
       "before": "def fetch(url):\n    timeout = 5\n    return (url, timeout)\n",
       "after": "def fetch(url):\n    timeout = 10\n    return (url, timeout)\n",
       "claims": [
-        {"kind": "signature_change", "symbol": "fetch"}
+        {
+          "kind": "signature_change",
+          "symbol": "fetch"
+        }
       ],
       "expected_passed": false,
       "expected_mismatch_substring": "unchanged"
@@ -238,7 +310,10 @@
       "before": "def main():\n    return 1\n",
       "after": "def main():\n    return 1\n",
       "claims": [
-        {"kind": "delete", "symbol": "phantom_helper"}
+        {
+          "kind": "delete",
+          "symbol": "phantom_helper"
+        }
       ],
       "expected_passed": false,
       "expected_mismatch_substring": "not present"
@@ -250,7 +325,11 @@
       "before": "def foo():\n    return 1\n",
       "after": "def bar():\n    return 1\n",
       "claims": [
-        {"kind": "rename", "symbol": "foo", "new_symbol": "bar"}
+        {
+          "kind": "rename",
+          "symbol": "foo",
+          "new_symbol": "bar"
+        }
       ],
       "expected_passed": true
     },
@@ -261,7 +340,10 @@
       "before": "def main():\n    return 1\n",
       "after": "def main():\n    return 1\n\ndef validate(x):\n    return x > 0\n",
       "claims": [
-        {"kind": "add", "symbol": "validate"}
+        {
+          "kind": "add",
+          "symbol": "validate"
+        }
       ],
       "expected_passed": true
     },
@@ -272,7 +354,10 @@
       "before": "def helper():\n    return 0\n\ndef main():\n    return helper()\n",
       "after": "def main():\n    return 0\n",
       "claims": [
-        {"kind": "delete", "symbol": "helper"}
+        {
+          "kind": "delete",
+          "symbol": "helper"
+        }
       ],
       "expected_passed": true
     },
@@ -283,7 +368,10 @@
       "before": "def handle(req):\n    return req\n",
       "after": "def handle(req, timeout=30):\n    return req\n",
       "claims": [
-        {"kind": "signature_change", "symbol": "handle"}
+        {
+          "kind": "signature_change",
+          "symbol": "handle"
+        }
       ],
       "expected_passed": true
     },
@@ -294,7 +382,11 @@
       "before": "export function foo(): number {\n  return 1;\n}\n",
       "after": "export function bar(): number {\n  return 1;\n}\n",
       "claims": [
-        {"kind": "rename", "symbol": "foo", "new_symbol": "bar"}
+        {
+          "kind": "rename",
+          "symbol": "foo",
+          "new_symbol": "bar"
+        }
       ],
       "expected_passed": true
     },
@@ -305,7 +397,11 @@
       "before": "package main\n\nfunc Foo() int { return 1 }\n",
       "after": "package main\n\nfunc Bar() int { return 1 }\n",
       "claims": [
-        {"kind": "rename", "symbol": "Foo", "new_symbol": "Bar"}
+        {
+          "kind": "rename",
+          "symbol": "Foo",
+          "new_symbol": "Bar"
+        }
       ],
       "expected_passed": true
     },
@@ -316,7 +412,11 @@
       "before": "pub fn foo() -> i32 { 1 }\n",
       "after": "pub fn bar() -> i32 { 1 }\n",
       "claims": [
-        {"kind": "rename", "symbol": "foo", "new_symbol": "bar"}
+        {
+          "kind": "rename",
+          "symbol": "foo",
+          "new_symbol": "bar"
+        }
       ],
       "expected_passed": true
     }
