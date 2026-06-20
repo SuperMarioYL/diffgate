@@ -24,7 +24,14 @@ from rich.console import Console
 from rich.table import Table
 
 from . import __version__
-from .verifier import ClaimedAction, EditClaim, Verdict, verify
+from .verifier import (
+    ClaimedAction,
+    EditClaim,
+    FileClaim,
+    Verdict,
+    verify,
+    verify_multi,
+)
 
 app = typer.Typer(
     name="diffgate",
@@ -50,6 +57,13 @@ EXT_TO_LANG: dict[str, str] = {
     ".jsx": "javascript",
     ".go": "go",
     ".rs": "rust",
+    ".java": "java",
+    ".cpp": "cpp",
+    ".cc": "cpp",
+    ".cxx": "cpp",
+    ".hpp": "cpp",
+    ".hh": "cpp",
+    ".rb": "ruby",
 }
 
 # Parsers for the ``--claim`` natural-language mini-DSL. The agent (or the
@@ -127,7 +141,7 @@ def _root(
 @app.command("verify")
 def verify_cmd(
     before: Path = typer.Option(
-        ...,
+        None,
         "--before",
         exists=True,
         file_okay=True,
@@ -136,7 +150,7 @@ def verify_cmd(
         help="Path to the file BEFORE the agent's edit.",
     ),
     after: Path = typer.Option(
-        ...,
+        None,
         "--after",
         exists=True,
         file_okay=True,
@@ -145,7 +159,7 @@ def verify_cmd(
         help="Path to the file AFTER the agent's edit.",
     ),
     claim: list[str] = typer.Option(
-        ...,
+        None,
         "--claim",
         "-c",
         help=(
@@ -154,10 +168,24 @@ def verify_cmd(
             "or separate with ';'."
         ),
     ),
+    claim_file: str = typer.Option(
+        None,
+        "--claim-file",
+        help=(
+            "Path to a structured JSON claim file (see "
+            "examples/claim_file_schema.json), or '-' to read it from stdin. "
+            "Feeds claimed_actions straight to the verifier — CLI/MCP parity. "
+            "A multi-file claim file carries its own before/after paths and is "
+            "gated in one call (omit --before/--after)."
+        ),
+    ),
     language: str = typer.Option(
         "auto",
         "--lang",
-        help="Source language: python|typescript|tsx|javascript|go|rust|auto.",
+        help=(
+            "Source language: python|typescript|tsx|javascript|go|rust|"
+            "java|cpp|ruby|auto."
+        ),
     ),
     json_output: bool = typer.Option(
         False,
@@ -168,15 +196,52 @@ def verify_cmd(
     """Verify an agent's edit claim against the AST diff.
 
     Exits 0 if every claimed action is reflected in the structural diff,
-    and 1 otherwise (with a per-mismatch explanation).
+    and 1 otherwise (with a per-mismatch explanation). The claim can come from
+    the ``--claim`` mini-DSL or a structured ``--claim-file`` (single- or
+    multi-file).
     """
-    lang = _detect_language(before, language)
+    if claim and claim_file:
+        _console_stderr.print(
+            "[bold red]error:[/bold red] pass either --claim or --claim-file, "
+            "not both."
+        )
+        raise typer.Exit(code=2)
 
-    try:
-        actions = _parse_claims(claim)
-    except ValueError as exc:
-        _console_stderr.print(f"[bold red]claim parse error:[/bold red] {exc}")
-        raise typer.Exit(code=2) from exc
+    if claim_file:
+        try:
+            payload = _load_claim_file(claim_file)
+        except (OSError, ValueError) as exc:
+            _console_stderr.print(f"[bold red]claim-file error:[/bold red] {exc}")
+            raise typer.Exit(code=2) from exc
+
+        if isinstance(payload, dict) and "files" in payload:
+            _run_multi_file(payload, claim_file, language, json_output)
+            return
+
+        actions = _actions_from_payload(payload)
+        payload_lang = payload.get("language") if isinstance(payload, dict) else None
+    else:
+        if not claim:
+            _console_stderr.print(
+                "[bold red]error:[/bold red] provide a claim via --claim or "
+                "--claim-file."
+            )
+            raise typer.Exit(code=2)
+        try:
+            actions = _parse_claims(claim)
+        except ValueError as exc:
+            _console_stderr.print(f"[bold red]claim parse error:[/bold red] {exc}")
+            raise typer.Exit(code=2) from exc
+        payload_lang = None
+
+    if before is None or after is None:
+        _console_stderr.print(
+            "[bold red]error:[/bold red] single-file verify needs --before and "
+            "--after (use a multi-file claim file to gate several files)."
+        )
+        raise typer.Exit(code=2)
+
+    lang = _detect_language(before, payload_lang or language)
 
     edit = EditClaim(
         before_blob=before.read_text(encoding="utf-8"),
@@ -192,6 +257,56 @@ def verify_cmd(
         sys.stdout.write("\n")
     else:
         _render_verdict(verdict, before, after, lang)
+
+    raise typer.Exit(code=0 if verdict.passed else 1)
+
+
+def _run_multi_file(
+    payload: dict, claim_file: str, language: str, json_output: bool
+) -> None:
+    """Build FileClaims from a multi-file claim payload and gate them at once."""
+    base = _claim_file_base_dir(payload, claim_file)
+    file_claims: list[FileClaim] = []
+    for entry in payload["files"]:
+        if not isinstance(entry, dict):
+            _console_stderr.print(
+                "[bold red]claim-file error:[/bold red] each `files` entry must "
+                "be an object."
+            )
+            raise typer.Exit(code=2)
+        try:
+            before_path = (base / entry["before"]).resolve()
+            after_path = (base / entry["after"]).resolve()
+            label = entry.get("path") or entry["after"]
+            actions = [ClaimedAction.from_dict(a) for a in entry["claimed_actions"]]
+        except (KeyError, ValueError) as exc:
+            _console_stderr.print(f"[bold red]claim-file error:[/bold red] {exc}")
+            raise typer.Exit(code=2) from exc
+
+        try:
+            entry_lang = _detect_language(
+                after_path, entry.get("language") or language
+            )
+            edit = EditClaim(
+                before_blob=before_path.read_text(encoding="utf-8"),
+                after_blob=after_path.read_text(encoding="utf-8"),
+                language=entry_lang,
+                claimed_actions=actions,
+            )
+        except (OSError, typer.BadParameter) as exc:
+            _console_stderr.print(
+                f"[bold red]claim-file error:[/bold red] {label}: {exc}"
+            )
+            raise typer.Exit(code=2) from exc
+        file_claims.append(FileClaim(path=str(label), claim=edit))
+
+    verdict = verify_multi(file_claims)
+
+    if json_output:
+        json.dump(verdict.to_dict(), sys.stdout, indent=2, ensure_ascii=False)
+        sys.stdout.write("\n")
+    else:
+        _render_multi_verdict(verdict, len(file_claims))
 
     raise typer.Exit(code=0 if verdict.passed else 1)
 
@@ -252,6 +367,48 @@ def bench_cmd(
         sys.stdout.write("\n")
     else:
         _console_stdout.print(render_report(result))
+
+
+def _load_claim_file(spec: str) -> object:
+    """Read a JSON claim file (or stdin when ``spec`` is ``-``)."""
+    if spec == "-":
+        raw = sys.stdin.read()
+    else:
+        path = Path(spec)
+        if not path.exists():
+            raise OSError(f"claim file not found: {spec}")
+        raw = path.read_text(encoding="utf-8")
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"invalid JSON in claim file: {exc.msg}") from exc
+
+
+def _actions_from_payload(payload: object) -> list[ClaimedAction]:
+    """Coerce a single-file claim payload into a list of ClaimedActions."""
+    if isinstance(payload, list):
+        raw_actions = payload
+    elif isinstance(payload, dict):
+        raw_actions = payload.get("claimed_actions")
+        if raw_actions is None:
+            raise ValueError(
+                "claim file object must have a 'claimed_actions' list "
+                "(or be a bare list of actions, or a multi-file 'files' object)."
+            )
+    else:
+        raise ValueError("claim file must be a list or an object.")
+    if not isinstance(raw_actions, list) or not raw_actions:
+        raise ValueError("claim file must contain at least one claimed action.")
+    return [ClaimedAction.from_dict(a) for a in raw_actions]
+
+
+def _claim_file_base_dir(payload: dict, claim_file: str) -> Path:
+    """Resolve the base directory per-file paths are relative to."""
+    if payload.get("base_dir"):
+        return Path(payload["base_dir"])
+    if claim_file == "-":
+        return Path.cwd()
+    return Path(claim_file).resolve().parent
 
 
 def _detect_language(path: Path, override: str) -> str:
@@ -346,6 +503,42 @@ def _render_verdict(verdict: Verdict, before: Path, after: Path, lang: str) -> N
 
     _console_stdout.print(
         f"\n[dim]Structural diff: +{len(diff.added)} added · "
+        f"-{len(diff.deleted)} deleted · "
+        f"~{len(diff.signature_changed)} sig_changed · "
+        f"…{len(diff.body_changed)} body_changed · "
+        f"={len(diff.unchanged)} unchanged[/dim]"
+    )
+
+
+def _render_multi_verdict(verdict: Verdict, file_count: int) -> None:
+    diff = verdict.structural_diff
+    _console_stdout.print(f"[dim]multi-file verify — {file_count} file(s)[/dim]")
+
+    if verdict.passed:
+        _console_stdout.print(
+            "[bold green]✓ PASSED[/bold green] — every claimed action is "
+            "reflected in the AST diff across all files."
+        )
+    else:
+        _console_stdout.print(
+            f"[bold red]✗ FAILED[/bold red] — {len(verdict.mismatches)} "
+            f"mismatch(es) detected:\n"
+        )
+        table = Table(show_lines=True, header_style="bold")
+        table.add_column("Kind", style="cyan", no_wrap=True)
+        table.add_column("Symbol", style="yellow")
+        table.add_column("Reason", style="red")
+        for m in verdict.mismatches:
+            sym = m.action.symbol
+            if m.action.new_symbol:
+                sym = f"{m.action.symbol} → {m.action.new_symbol}"
+            if m.action.scope:
+                sym = f"{sym}  [dim](scope: {m.action.scope})[/dim]"
+            table.add_row(m.action.kind, sym, m.reason)
+        _console_stdout.print(table)
+
+    _console_stdout.print(
+        f"\n[dim]Aggregate structural diff: +{len(diff.added)} added · "
         f"-{len(diff.deleted)} deleted · "
         f"~{len(diff.signature_changed)} sig_changed · "
         f"…{len(diff.body_changed)} body_changed · "

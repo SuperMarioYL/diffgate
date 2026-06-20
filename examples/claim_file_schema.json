@@ -1,0 +1,118 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/supermario-leo/diffgate/blob/main/examples/claim_file_schema.json",
+  "title": "DiffGate claim file",
+  "description": "Structured input for `diffgate verify --claim-file <file>` (pass `-` to read this JSON from stdin). It gives the CLI the same structured `claimed_actions` payload the MCP `verify_edit` tool already accepts, so an agent emitting JSON no longer has to round-trip through the `--claim` mini-DSL. Two shapes are accepted: a SINGLE-file claim (used with --before/--after on the command line) and a MULTI-file claim that carries its own before/after file paths so a whole edit spanning many files is gated in one call.",
+  "oneOf": [
+    {
+      "title": "Single-file claim",
+      "description": "A bare list of actions, or an object wrapping one. Use with `--before X --after X.new --claim-file claims.json`.",
+      "oneOf": [
+        {
+          "type": "array",
+          "items": {"$ref": "#/definitions/claimed_action"}
+        },
+        {
+          "type": "object",
+          "required": ["claimed_actions"],
+          "properties": {
+            "language": {"type": "string", "description": "Override the auto-detected language (python|typescript|tsx|javascript|go|rust|java|cpp|ruby)."},
+            "claimed_actions": {
+              "type": "array",
+              "items": {"$ref": "#/definitions/claimed_action"}
+            }
+          }
+        }
+      ]
+    },
+    {
+      "title": "Multi-file claim",
+      "description": "Gate an edit spanning several files in one call. Each entry names its own before/after file and the actions claimed for that file. Mismatches from every file aggregate into a single Verdict; the failing file's path is attached to each mismatch reason.",
+      "type": "object",
+      "required": ["files"],
+      "properties": {
+        "base_dir": {
+          "type": "string",
+          "description": "Optional directory the per-file `before`/`after` paths are resolved against. Defaults to the claim file's own directory (or the cwd for stdin)."
+        },
+        "files": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["before", "after", "claimed_actions"],
+            "properties": {
+              "path": {"type": "string", "description": "Logical path used to label this file in mismatch reasons. Defaults to the `after` path."},
+              "before": {"type": "string", "description": "Path to the file BEFORE the edit (relative to base_dir, or absolute)."},
+              "after": {"type": "string", "description": "Path to the file AFTER the edit (relative to base_dir, or absolute)."},
+              "language": {"type": "string", "description": "Override the language auto-detected from the file extension."},
+              "claimed_actions": {
+                "type": "array",
+                "items": {"$ref": "#/definitions/claimed_action"}
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "definitions": {
+    "claimed_action": {
+      "type": "object",
+      "required": ["kind", "symbol"],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": ["rename", "add", "delete", "move", "signature_change"],
+          "description": "What the agent claims it did to `symbol`."
+        },
+        "symbol": {
+          "type": "string",
+          "description": "Source name for rename/move; the affected name for add/delete/signature_change. The shorthand 'old->new' (or 'old→new') is also accepted for rename/move."
+        },
+        "new_symbol": {
+          "type": "string",
+          "description": "Target name for a rename (or destination symbol for a move). Optional when `symbol` uses the 'old->new' shorthand."
+        },
+        "scope": {
+          "type": "string",
+          "description": "Containing class/module the symbol lives in (e.g. 'MyClass'). Empty means module level / wildcard. For `move`, this is the destination scope the symbol must land in."
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "examples": [
+    [
+      {"kind": "rename", "symbol": "foo", "new_symbol": "bar"},
+      {"kind": "add", "symbol": "helper", "scope": "MyClass"}
+    ],
+    {
+      "language": "python",
+      "claimed_actions": [
+        {"kind": "signature_change", "symbol": "handle_request"}
+      ]
+    },
+    {
+      "base_dir": ".",
+      "files": [
+        {
+          "path": "src/api.py",
+          "before": "before/api.py",
+          "after": "after/api.py",
+          "claimed_actions": [
+            {"kind": "add", "symbol": "handler"}
+          ]
+        },
+        {
+          "path": "src/util.py",
+          "before": "before/util.py",
+          "after": "after/util.py",
+          "claimed_actions": [
+            {"kind": "delete", "symbol": "old_helper"}
+          ]
+        }
+      ]
+    }
+  ]
+}

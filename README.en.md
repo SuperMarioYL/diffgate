@@ -156,8 +156,9 @@ Full config in `diffgate --help`.
 - [x] **m2 — `diffgate mcp-server`**: MCP `verify_edit` tool, plug-and-play with Claude Code / Cursor
 - [x] **m3 — `diffgate bench`**: replay traces, emit precision/recall
 - [x] **v0.2 — scope-aware verification**: strict `scope` matching that catches "class method vs same-named free function" confusion
-- [ ] **DiffGate Cloud** (paid): cross-team catch-rate aggregation, SSO, Prometheus exporter; Java / C++ parsers
-- [ ] **v0.3 — framework integrations**: official optional gate in LangGraph / Mastra / Autogen
+- [x] **v0.3 — CLI/MCP parity + more languages**: structured `--claim-file` (incl. stdin), multi-file verify, new Java / C++ / Ruby parsers, plus three silent-lie fixes
+- [ ] **DiffGate Cloud** (paid): cross-team catch-rate aggregation, SSO, Prometheus exporter
+- [ ] **framework integrations**: official optional gate in LangGraph / Mastra / Autogen
 
 ## Pricing
 

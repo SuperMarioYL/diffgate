@@ -6,6 +6,38 @@ All notable changes to DiffGate are documented here. Format follows
 
 ## [Unreleased]
 
+## [0.3.0]
+
+CLI/MCP parity, multi-file edits, three more languages, and three silent-lie
+fixes that tightened the exact catch-rate the README badge quotes.
+
+### Added
+- **Structured `--claim-file` mode.** `diffgate verify --claim-file claims.json`
+  (or `--claim-file -` for stdin) feeds structured `claimed_actions` straight
+  into the verifier, giving the CLI the same payload shape the MCP
+  `verify_edit` tool already accepted — full CLI/MCP parity for agents that
+  emit JSON claims. See `examples/claim_file_schema.json` for the payload shape.
+- **Multi-file verify.** A claim file may carry its own per-action before/after
+  paths, so a single `diffgate verify --claim-file` run can gate an edit that
+  spans several files and aggregate every mismatch into one verdict.
+- **Three new languages.** `LANGUAGE_RULES` now covers **Java, C++, and Ruby**
+  in addition to Python, TS/TSX/JS, Go, and Rust — all via grammars already
+  shipped in `tree-sitter-language-pack`, no new dependency.
+
+### Fixed
+- **Bench no longer drops error rows from the denominator.** `run_bench` used to
+  `continue` past any row that raised before bumping `result.total`, so a
+  `was_lie=true` row that crashed silently vanished from the headline catch-rate.
+  Error rows are now counted and attributed to their label instead of dropped.
+- **`move` of a duplicate-named symbol is no longer a false pass.** Deleting one
+  of two same-named symbols (module-level `foo` vs `A.foo`) made the scope-sets
+  differ, which previously read as a passing "move". A move now requires the
+  symbol to genuinely leave one scope **and** land in a new one.
+- **TS/JS assigned functions are visible.** `export const handler = (req) => {…}`
+  and `const foo = function(){}` are now emitted as symbols (arrow / function
+  expression assignments), so truthful edits to the dominant TS/JS idiom are no
+  longer over-flagged.
+
 ## [0.2.0]
 
 First real feature iteration: claims can now pin a containing **scope**, and

@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "diffgate"
-version = "0.2.0"
+version = "0.3.0"
 description = "Structural verification gate for coding agents — fails the agent loop when claimed edits don't match the AST diff."
 readme = "README.md"
 requires-python = ">=3.12"

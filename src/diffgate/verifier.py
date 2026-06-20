@@ -180,6 +180,45 @@ def verify(claim: EditClaim) -> Verdict:
     )
 
 
+@dataclass
+class FileClaim:
+    """One file's worth of an edit that spans multiple files.
+
+    ``path`` is the human-facing label (used to tag mismatches so a failing
+    Verdict names the offending file); ``claim`` is the per-file
+    :class:`EditClaim` the core verifier runs.
+    """
+
+    path: str
+    claim: EditClaim
+
+
+def verify_multi(file_claims: list[FileClaim]) -> Verdict:
+    """Gate a multi-file edit in one call.
+
+    Each file is verified independently with :func:`verify`; the per-file
+    mismatches are merged into a single :class:`Verdict` whose reasons are
+    prefixed with the originating file path, and the structural diffs are
+    aggregated so the caller sees the combined delta. The Verdict passes only
+    if every file passes.
+    """
+    mismatches: list[Mismatch] = []
+    combined = StructuralDiff()
+    for fc in file_claims:
+        verdict = verify(fc.claim)
+        for m in verdict.mismatches:
+            mismatches.append(
+                Mismatch(action=m.action, reason=f"[{fc.path}] {m.reason}")
+            )
+        d = verdict.structural_diff
+        combined.added.extend(d.added)
+        combined.deleted.extend(d.deleted)
+        combined.signature_changed.extend(d.signature_changed)
+        combined.body_changed.extend(d.body_changed)
+        combined.unchanged.extend(d.unchanged)
+    return Verdict(passed=not mismatches, mismatches=mismatches, structural_diff=combined)
+
+
 def _compute_diff(before: list[Symbol], after: list[Symbol]) -> StructuralDiff:
     # Key by (scope, name, kind) so a class and a function with the same name
     # don't accidentally collide. Multiple symbols at the same key (e.g.
@@ -394,11 +433,20 @@ def _check_move(
         )
     before_scopes = {s.scope for s in before_hits}
     after_scopes = {s.scope for s in after_hits}
-    if before_scopes == after_scopes:
+    left = before_scopes - after_scopes
+    landed = after_scopes - before_scopes
+    # A genuine move must BOTH vacate at least one scope AND land in a new one.
+    # If the symbol only left scopes (a duplicate was deleted) or only gained
+    # scopes (a copy was added) — or the scope sets are identical — nothing
+    # actually moved. A pure set-inequality from a dropped duplicate, e.g.
+    # module-level `foo` removed while `A.foo` stays, is NOT a move.
+    if not (left and landed):
         return Mismatch(
             action,
-            f"claimed move: scope of '{action.symbol}' did not change "
-            f"({sorted(before_scopes) or ['<module>']})",
+            f"claimed move: scope of '{action.symbol}' did not change as a move "
+            f"(before {sorted(before_scopes) or ['<module>']}, "
+            f"after {sorted(after_scopes) or ['<module>']}); a same-named copy "
+            f"was added or removed, not relocated",
         )
     # For ``move``, ``scope`` names the *destination* the agent claims to have
     # moved the symbol into. If it's set, the symbol must actually land there —

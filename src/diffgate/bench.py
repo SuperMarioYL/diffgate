@@ -44,10 +44,19 @@ class BenchResult:
     true_negatives: int = 0   # was_lie=False, verifier said passed
     false_negatives: int = 0  # was_lie=True, verifier said passed (lie missed)
     parse_errors: int = 0
+    # Rows that raised while parsing/verifying. They are NOT silently dropped:
+    # a was_lie=true error row is a missed lie (false negative), so it stays in
+    # the recall denominator; a was_lie=false error row can't be scored as a
+    # truthful pass, so it is tallied here as uncounted and surfaced explicitly
+    # rather than inflating the headline catch-rate.
+    uncounted: int = 0
+    uncounted_examples: list[str] = None  # type: ignore[assignment]
     missed_examples: list[str] = None  # type: ignore[assignment]
     false_alarm_examples: list[str] = None  # type: ignore[assignment]
 
     def __post_init__(self) -> None:
+        if self.uncounted_examples is None:
+            self.uncounted_examples = []
         if self.missed_examples is None:
             self.missed_examples = []
         if self.false_alarm_examples is None:
@@ -81,10 +90,12 @@ class BenchResult:
             "true_negatives": self.true_negatives,
             "false_negatives": self.false_negatives,
             "parse_errors": self.parse_errors,
+            "uncounted": self.uncounted,
             "precision": round(self.precision, 4),
             "recall": round(self.recall, 4),
             "catch_rate": round(self.catch_rate, 4),
             "f1": round(self.f1, 4),
+            "uncounted_examples": list(self.uncounted_examples[:5]),
             "missed_examples": list(self.missed_examples[:5]),
             "false_alarm_examples": list(self.false_alarm_examples[:5]),
         }
@@ -111,11 +122,26 @@ def run_bench(traces_path: Path) -> BenchResult:
     for record in iter_traces(traces_path):
         trace_id = str(record.get("trace_id", f"trace_{result.total}"))
         was_lie = bool(record.get("was_lie", False))
+
         try:
             claim = EditClaim.from_dict(record)
             verdict = verify(claim)
         except Exception:  # noqa: BLE001 — bench should be robust to bad rows
+            # An erroring row is NOT a free pass. A real lie that crashes the
+            # verifier is a lie we failed to catch — count it as a false
+            # negative so it stays in the recall denominator and the headline
+            # catch-rate tells the truth. A non-lie row that crashes can't be
+            # scored as a truthful pass, so it's surfaced as uncounted.
             result.parse_errors += 1
+            if was_lie:
+                result.total += 1
+                result.false_negatives += 1
+                if len(result.missed_examples) < 5:
+                    result.missed_examples.append(trace_id)
+            else:
+                result.uncounted += 1
+                if len(result.uncounted_examples) < 5:
+                    result.uncounted_examples.append(trace_id)
             continue
 
         result.total += 1
@@ -139,8 +165,8 @@ def run_bench(traces_path: Path) -> BenchResult:
 def render_report(result: BenchResult) -> str:
     """Human-readable summary suitable for a CI log or a README paste."""
     lines = [
-        f"DiffGate bench — {result.total} traces "
-        f"({result.parse_errors} skipped)",
+        f"DiffGate bench — {result.total} traces scored "
+        f"({result.parse_errors} errored, {result.uncounted} uncounted)",
         "",
         f"  Catch-rate (recall) : {result.catch_rate:.1%}",
         f"  Precision           : {result.precision:.1%}",
@@ -149,6 +175,14 @@ def render_report(result: BenchResult) -> str:
         f"  TP={result.true_positives}  FP={result.false_positives}  "
         f"TN={result.true_negatives}  FN={result.false_negatives}",
     ]
+    if result.uncounted:
+        lines.append("")
+        lines.append(
+            f"  ⚠ {result.uncounted} non-lie row(s) errored and could not be "
+            f"scored — excluded from the headline numbers above."
+        )
+        for tid in result.uncounted_examples:
+            lines.append(f"    - {tid}")
     if result.missed_examples:
         lines.append("")
         lines.append("  Missed (sample):")
