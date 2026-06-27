@@ -7,7 +7,8 @@
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License" /></a>
   <img src="https://img.shields.io/badge/python-3.12%2B-blue.svg" alt="Python 3.12+" />
-  <img src="https://img.shields.io/badge/status-WIP-orange.svg" alt="WIP" />
+  <img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/SuperMarioYL/diffgate/main/bench/catch_rate.json" alt="Catch rate" />
+  <img src="https://img.shields.io/badge/languages-9-success" alt="9 languages" />
   <img src="https://img.shields.io/badge/Coding%20Agent-gate-7c3aed" alt="Coding Agent gate" />
   <img src="https://img.shields.io/badge/Agentic-ready-0ea5e9" alt="Agentic ready" />
   <img src="https://img.shields.io/badge/MCP-compatible-22c55e" alt="MCP compatible" />
@@ -47,7 +48,7 @@ Coding agents — Cursor, Claude Code, Codex, GPT-5.5 — frequently report `suc
   </picture>
 </p>
 
-A coding agent (Cursor / Claude Code / Codex / LangGraph) emits an **`EditClaim`** after every edit — the before-blob, the after-blob, and the actions it claims it performed. `cli.py` and `mcp_server.py` are two thin shells over the same `verifier.verify(EditClaim) → Verdict`: the core parses both sides into an AST with tree-sitter (Python / TypeScript / Go / Rust) and aligns each claim against the real structural diff. The **Verdict** either passes the loop through (`exit 0`) or returns `exit_code=1` as **structural backpressure**, bouncing the agent back to retry with the mismatch reasons attached — all local, offline and deterministic, with no daemon, no DB and no network calls.
+A coding agent (Cursor / Claude Code / Codex / LangGraph) emits an **`EditClaim`** after every edit — the before-blob, the after-blob, and the actions it claims it performed. `cli.py` and `mcp_server.py` are two thin shells over the same `verifier.verify(EditClaim) → Verdict`: the core parses both sides into an AST with tree-sitter (Python / TypeScript / TSX / JavaScript / Go / Rust / Java / C++ / Ruby) and aligns each claim against the real structural diff. The **Verdict** either passes the loop through (`exit 0`) or returns `exit_code=1` as **structural backpressure**, bouncing the agent back to retry with the mismatch reasons attached — all local, offline and deterministic, with no daemon, no DB and no network calls.
 
 ## Quickstart
 
@@ -88,7 +89,7 @@ Three local processes, all offline:
                                           │
                                           ▼
                                   [ verifier core ]
-                                   ├── tree-sitter parsers (py/ts/go/rs)
+                                   ├── tree-sitter parsers (py/ts/tsx/js/go/rs/java/cpp/ruby)
                                    └── claim → ast_change matcher
 ```
 
@@ -143,7 +144,7 @@ DiffGate fixes one class of bug (structural lies). It doesn't replace any of the
 
 | Key              | Type   | Default            | Meaning                                                     |
 | ---------------- | ------ | ------------------ | ----------------------------------------------------------- |
-| `languages`      | list   | `[py, ts, go, rs]` | Enabled tree-sitter parsers                                 |
+| `languages`      | list   | `[py, ts, tsx, js, go, rs, java, cpp, ruby]` | Enabled tree-sitter parsers                                 |
 | `strict_renames` | bool   | `true`             | Rename claim must touch all references; `false` only verifies declaration |
 | `mcp.transport`  | enum   | `stdio`            | `stdio` or `sse`                                            |
 | `bench.traces`   | path   | bundled 200        | Ground-truth JSONL consumed by `diffgate bench`             |

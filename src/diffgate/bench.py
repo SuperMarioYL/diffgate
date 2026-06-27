@@ -29,7 +29,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable
+from typing import Any, Iterable
 
 from .verifier import EditClaim, verify
 
@@ -194,6 +194,35 @@ def render_report(result: BenchResult) -> str:
         for tid in result.false_alarm_examples:
             lines.append(f"    - {tid}")
     return "\n".join(lines)
+
+
+def badge_payload(result: BenchResult, label: str = "catch-rate") -> dict[str, Any]:
+    """Build a shields.io endpoint-badge JSON from a bench result.
+
+    The README catch-rate badge points at a committed JSON file
+    (``bench/catch_rate.json``) produced from this function. The ``ci.yml``
+    "Verify catch-rate badge" step re-runs :func:`run_bench` on the committed
+    trace and fails if the badge message disagrees, so the number can never
+    drift from what the verifier actually scores. Regenerate the committed file
+    after changing the trace with::
+
+        diffgate bench bench/silent_lie_trace.jsonl --json
+    """
+    rate = result.catch_rate
+    if rate >= 0.95:
+        color = "brightgreen"
+    elif rate >= 0.80:
+        color = "green"
+    elif rate >= 0.50:
+        color = "yellow"
+    else:
+        color = "red"
+    return {
+        "schemaVersion": 1,
+        "label": label,
+        "message": f"{rate:.0%}",
+        "color": color,
+    }
 
 
 def _main(argv: list[str] | None = None) -> int:

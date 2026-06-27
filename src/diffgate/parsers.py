@@ -77,6 +77,13 @@ LANGUAGE_RULES: dict[str, dict[str, tuple[str, None]]] = {
         "class_declaration": ("class", None),
         "interface_declaration": ("class", None),
         "enum_declaration": ("class", None),
+        # `public record Point(int x, int y) {}` (Java 16+, ubiquitous in 17
+        # LTS / Spring Boot 3). The record's name identifier, component list,
+        # and body are all exposed via the standard fields the existing
+        # _walk/_find_name path already reads, so mapping it as a class is the
+        # whole fix — without it a record yields zero symbols and truthful
+        # add/rename claims false-positive.
+        "record_declaration": ("class", None),
     },
     "cpp": {
         "function_definition": ("function", None),
@@ -168,6 +175,21 @@ def _walk(node, language: str, source: bytes, scope: str, out: list[Symbol]) -> 
             # class is really a method; promote so the diff doesn't conflate
             # module-level and class-level functions with the same name.
             effective_kind = "method" if (kind == "function" and scope) else kind
+            # C++ out-of-line method definitions (``void Foo::bar() {}``) sit at
+            # module/namespace level so the walk-scope is empty, yet the
+            # qualified declarator names their enclosing class. Propagate the
+            # qualifier as the symbol's scope and promote to method so the
+            # symbol keys/scores identically to the same method defined inline
+            # inside ``struct Foo`` — otherwise an out-of-line def and its inline
+            # twin would collide on (scope, name) but differ on kind, surfacing
+            # a spurious delete+add when an edit merely moves a method in/out.
+            sym_scope = scope
+            if language == "cpp" and node.type == "function_definition":
+                qual = _cpp_qualifier_scope(node, source)
+                if qual:
+                    sym_scope = qual
+                    if effective_kind == "function":
+                        effective_kind = "method"
             sig = _signature_text(value_node or node, source)
             body_h = _body_hash(value_node or node, source)
             out.append(
@@ -175,7 +197,7 @@ def _walk(node, language: str, source: bytes, scope: str, out: list[Symbol]) -> 
                     name=name,
                     kind=effective_kind,
                     signature=sig,
-                    scope=scope,
+                    scope=sym_scope,
                     body_hash=body_h,
                     line=node.start_point[0] + 1,
                 )
@@ -213,13 +235,49 @@ def _find_name(node, source: bytes) -> str | None:
 
 
 def _cpp_declarator_name(node, source: bytes) -> str | None:
-    """Walk the C++ declarator chain to the leaf name node."""
+    """Walk the C++ declarator chain to the leaf name node.
+
+    For an out-of-line method definition (``void Foo::bar(int x) {}``) the leaf
+    declarator is a ``qualified_identifier`` whose text is ``Foo::bar``. The
+    verifier matches claims by the bare name (``s.name == action.symbol``), so
+    returning the whole qualified text makes a truthful ``rename bar→baz`` /
+    ``delete bar`` never match and over-flags the dominant C++ header/impl
+    layout. Return only the final segment after the last ``::``; the qualifier
+    is recovered separately by :func:`_cpp_qualifier_scope` so scoped claims
+    can match out-of-line definitions the same way they match inline ones.
+    """
     declarator = node.child_by_field_name("declarator")
     while declarator is not None:
         if declarator.type in {"identifier", "field_identifier"}:
             return _node_text(declarator, source)
-        if declarator.type in {"qualified_identifier", "destructor_name"}:
+        if declarator.type == "qualified_identifier":
+            # Foo::bar → bar ; A::B::bar → bar ; ::bar → bar
+            return _node_text(declarator, source).rsplit("::", 1)[-1].strip()
+        if declarator.type == "destructor_name":
             return _node_text(declarator, source)
+        declarator = declarator.child_by_field_name("declarator")
+    return None
+
+
+def _cpp_qualifier_scope(node, source: bytes) -> str | None:
+    """Return the qualifier (``Foo``) of an out-of-line C++ method, or ``None``.
+
+    Walks the same declarator chain as :func:`_cpp_declarator_name`; if the leaf
+    is a ``qualified_identifier`` the part before the last ``::`` is the
+    enclosing class/namespace. ``None`` for a plain (unqualified) free function
+    so the caller leaves the walk-scope untouched.
+    """
+    declarator = node.child_by_field_name("declarator")
+    while declarator is not None:
+        if declarator.type == "qualified_identifier":
+            text = _node_text(declarator, source)
+            if "::" not in text:
+                return None
+            qual = text.rsplit("::", 1)[0].strip()
+            # ``::bar`` (global) has an empty qualifier — no meaningful scope.
+            return qual or None
+        if declarator.type in {"identifier", "field_identifier", "destructor_name"}:
+            return None
         declarator = declarator.child_by_field_name("declarator")
     return None
 

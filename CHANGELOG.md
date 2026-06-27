@@ -6,6 +6,39 @@ All notable changes to DiffGate are documented here. Format follows
 
 ## [Unreleased]
 
+## [0.4.0]
+
+Four correctness fixes to the v0.3.0 language coverage (truthful edits were being
+false-positived in C++ and Java), the docs brought in sync with the shipped
+9-language set, and the catch-rate badge wired from a committed bench trace.
+
+### Fixed
+- **C++ out-of-line methods no longer false-positive truthful edits.** Out-of-line
+  definitions like `void Foo::bar(int x) {}` were parsed with the qualified name
+  `Foo::bar`, so a truthful `rename bar→baz` / `delete bar` never matched and the
+  verdict failed — the dominant C++ header/impl layout. `_cpp_declarator_name` now
+  returns the unqualified final segment (`bar`) and carries `Foo` as scope.
+- **Java records are now visible.** `LANGUAGE_RULES["java"]` omitted
+  `record_declaration`, so `public record Point(...) {}` (Java 16+, ubiquitous in
+  Java 17 LTS / Spring Boot 3) yielded zero symbols and a truthful `add Point` /
+  `rename Point→Pt` returned `passed=False`. Records are now mapped like classes.
+- **`.h` / `.hxx` headers auto-detect as C++.** `EXT_TO_LANG` mapped
+  `.cpp/.cc/.cxx/.hpp/.hh` but not the most common header extension `.h`, so the
+  default `--lang auto` errored out on `widget.h` and exited before the verifier ran.
+  Both `.h` and `.hxx` now resolve to `cpp`.
+- **Docs match the shipped languages.** The `verify_edit` MCP tool docstring and the
+  README architecture / feature / languages sections still advertised only
+  Python / TypeScript / Go / Rust; they now list the full
+  `python | typescript | tsx | javascript | go | rust | java | cpp | ruby` set, so
+  an agent reading the tool contract isn't told java/cpp/ruby are unsupported when
+  they work at runtime.
+
+### Added
+- **Catch-rate badge wired from a committed trace.** The README badge (en + zh-CN)
+  now reads from `bench/catch_rate.json`, regenerated from
+  `diffgate bench bench/silent_lie_trace.jsonl`. CI verifies the badge matches a
+  fresh bench run so it can't silently drift.
+
 ## [0.3.0]
 
 CLI/MCP parity, multi-file edits, three more languages, and three silent-lie

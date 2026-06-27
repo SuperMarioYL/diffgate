@@ -32,3 +32,21 @@ jobs:
 
       - name: Run tests
         run: uv run pytest tests/ -v
+
+      - name: Verify catch-rate badge matches a fresh bench run
+        run: |
+          fresh=$(uv run diffgate bench bench/silent_lie_trace.jsonl --json)
+          echo "$fresh" > /tmp/bench_fresh.json
+          uv run python - <<'PY'
+          import json, math, sys
+          fresh = json.load(open("/tmp/bench_fresh.json"))
+          badge = json.load(open("bench/catch_rate.json"))
+          pct = round(fresh["catch_rate"] * 100)
+          want = f"{pct}%"
+          got = badge.get("message", "")
+          if got != want:
+              print(f"::error::catch-rate badge drift: bench says {want}, badge says {got}. "
+                    f"Regenerate bench/catch_rate.json from `diffgate bench bench/silent_lie_trace.jsonl --json`.")
+              sys.exit(1)
+          print(f"catch-rate badge OK: {got} (recall={fresh['recall']}, {fresh['total']} traces)")
+          PY

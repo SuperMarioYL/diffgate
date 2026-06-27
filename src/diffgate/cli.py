@@ -63,6 +63,13 @@ EXT_TO_LANG: dict[str, str] = {
     ".cxx": "cpp",
     ".hpp": "cpp",
     ".hh": "cpp",
+    # `.h` / `.hxx` are the most common C++ header conventions and were
+    # missing, so the default `--lang auto` raised BadParameter on `widget.h`
+    # and exited 2 before the verifier ran — silently disabling C++ for the
+    # single most common header naming. The tree-sitter cpp grammar parses
+    # plain-C headers too, so C headers are covered as a side effect.
+    ".h": "cpp",
+    ".hxx": "cpp",
     ".rb": "ruby",
 }
 

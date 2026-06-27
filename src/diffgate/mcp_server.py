@@ -83,7 +83,7 @@ def verify_edit(
         Full file contents AFTER the edit (utf-8 text).
     language:
         Source language id. One of: python, typescript, tsx, javascript,
-        go, rust.
+        go, rust, java, cpp, ruby.
     claimed_actions:
         List of action dicts. Each dict has ``kind`` (one of "rename",
         "add", "delete", "move", "signature_change"), ``symbol`` (source
