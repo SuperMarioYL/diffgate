@@ -6,6 +6,36 @@ All notable changes to DiffGate are documented here. Format follows
 
 ## [Unreleased]
 
+## [0.5.0]
+
+Two correctness fixes that close the last known silent-lie / over-flag holes in
+the multi-language verifier core: overloaded same-name methods no longer
+fabricate a diff on a pure reorder (a silent-lie false-negative), and Go methods
+now carry their receiver type as scope so truthful scoped claims aren't
+over-flagged.
+
+### Fixed
+- **Overloaded methods no longer fabricate a signature/body change on reorder.**
+  Symbols were keyed by `(scope, name, kind)` only — signature was not in the key —
+  so overloaded same-name methods (C++ `int f(int)` + `double f(double)`, Java
+  `int f(int)` + `String f(String)`) folded into one list and were paired
+  *positionally*. Reordering the overloads (or deleting one) re-aligned the lists and
+  mis-paired `f(int)` against `f(double)`, fabricating `signature_changed` /
+  `body_changed` entries — which defeated the no-op safety net and let a **lying**
+  `signature_change f` claim pass (`passed=True`) in both C++ and Java. Overloads are
+  now paired by **content** (signature, then body hash) before any positional
+  fallback, so a pure reorder is a true no-op, a real signature edit still surfaces,
+  and the single-overload / non-overloaded paths are unchanged.
+- **Go methods carry their receiver type as scope.** `func (s *Server) Handle() {}`
+  parsed to a method with `scope=''` because `_walk` never read the receiver type, so
+  a truthful scoped `add Handle scope=Server` / `signature_change Handle scope=Server`
+  returned `passed=False` (the MCP docstring tells agents `scope` is the containing
+  type, so agents emit such claims). The receiver type is now read from the method's
+  first parameter list (unwrapping pointer and generic receivers), completing the same
+  over-flag fix already shipped for TS arrows, C++ out-of-line methods, and Java
+  records — and a free `func Handle` and a method `Handle` no longer collide at the
+  module scope.
+
 ## [0.4.0]
 
 Four correctness fixes to the v0.3.0 language coverage (truthful edits were being

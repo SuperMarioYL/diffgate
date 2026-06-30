@@ -246,19 +246,15 @@ def _compute_diff(before: list[Symbol], after: list[Symbol]) -> StructuralDiff:
     for key in set(before_by_key) & set(after_by_key):
         before_syms = before_by_key[key]
         after_syms = after_by_key[key]
-        # Pair them up positionally; surplus on either side is treated as
-        # add/delete. This is a pragmatic v0.1 choice — overload-heavy code
-        # may want a smarter pairing in v0.2.
-        pair_count = min(len(before_syms), len(after_syms))
-        for b, a in zip(before_syms[:pair_count], after_syms[:pair_count]):
-            if b.signature != a.signature:
-                signature_changed.append((b, a))
-            elif b.body_hash != a.body_hash:
-                body_changed.append((b, a))
-            else:
-                unchanged.append(a)
-        added.extend(after_syms[pair_count:])
-        deleted.extend(before_syms[pair_count:])
+        _diff_symbol_group(
+            before_syms,
+            after_syms,
+            added=added,
+            deleted=deleted,
+            signature_changed=signature_changed,
+            body_changed=body_changed,
+            unchanged=unchanged,
+        )
 
     return StructuralDiff(
         added=added,
@@ -267,6 +263,119 @@ def _compute_diff(before: list[Symbol], after: list[Symbol]) -> StructuralDiff:
         body_changed=body_changed,
         unchanged=unchanged,
     )
+
+
+def _diff_symbol_group(
+    before_syms: list[Symbol],
+    after_syms: list[Symbol],
+    *,
+    added: list[Symbol],
+    deleted: list[Symbol],
+    signature_changed: list[tuple[Symbol, Symbol]],
+    body_changed: list[tuple[Symbol, Symbol]],
+    unchanged: list[Symbol],
+) -> None:
+    """Diff the symbols sharing one ``(scope, name, kind)`` key.
+
+    The common case is exactly one symbol on each side, but overloaded
+    same-name methods (C++ ``int f(int)`` + ``double f(double)``, Java
+    ``int f(int)`` + ``String f(String)``) fold multiple symbols into one
+    group. Pairing those **positionally** is a silent-lie bug: tree-sitter
+    emits overloads in source order, so a pure reorder (or deleting one
+    overload) re-aligns the lists and mis-pairs ``f(int)`` against
+    ``f(double)``, fabricating ``signature_changed`` / ``body_changed``
+    entries for an edit that changed nothing — which lets a LYING
+    ``signature_change`` claim pass because the AST *appears* to have moved.
+
+    Fix: pair by **content** first. An after-symbol whose ``signature``
+    matches a not-yet-consumed before-symbol is the same overload regardless
+    of order → unchanged (or a body change if the body differs). What's left
+    after content matching is the genuine signature change / add / delete,
+    paired positionally as a last resort so a real same-name signature edit
+    still surfaces as ``signature_changed`` rather than a delete+add pair.
+    """
+    # Fast path: the overwhelmingly common 1:1 case keeps the original
+    # positional semantics exactly.
+    if len(before_syms) <= 1 and len(after_syms) <= 1:
+        _pair_positionally(
+            before_syms,
+            after_syms,
+            added=added,
+            deleted=deleted,
+            signature_changed=signature_changed,
+            body_changed=body_changed,
+            unchanged=unchanged,
+        )
+        return
+
+    remaining_before = list(before_syms)
+    remaining_after: list[Symbol] = []
+
+    # Pass 1: exact (signature, body_hash) match — a truly unchanged overload,
+    # paired with its twin no matter where it sits in source order.
+    for a in after_syms:
+        match = _take_match(
+            remaining_before,
+            lambda b, a=a: b.signature == a.signature and b.body_hash == a.body_hash,
+        )
+        if match is not None:
+            unchanged.append(a)
+        else:
+            remaining_after.append(a)
+
+    # Pass 2: same signature, different body — the same overload with an
+    # edited body (a real body change, not a fabricated signature change).
+    still_after: list[Symbol] = []
+    for a in remaining_after:
+        match = _take_match(remaining_before, lambda b, a=a: b.signature == a.signature)
+        if match is not None:
+            body_changed.append((match, a))
+        else:
+            still_after.append(a)
+
+    # Whatever is left can't be content-matched: pair positionally so a
+    # genuine signature change on a same-name symbol still reads as
+    # signature_changed, and any surplus is a real add/delete.
+    _pair_positionally(
+        remaining_before,
+        still_after,
+        added=added,
+        deleted=deleted,
+        signature_changed=signature_changed,
+        body_changed=body_changed,
+        unchanged=unchanged,
+    )
+
+
+def _take_match(pool: list[Symbol], pred) -> Symbol | None:
+    """Pop and return the first symbol in ``pool`` satisfying ``pred``, or None."""
+    for i, sym in enumerate(pool):
+        if pred(sym):
+            return pool.pop(i)
+    return None
+
+
+def _pair_positionally(
+    before_syms: list[Symbol],
+    after_syms: list[Symbol],
+    *,
+    added: list[Symbol],
+    deleted: list[Symbol],
+    signature_changed: list[tuple[Symbol, Symbol]],
+    body_changed: list[tuple[Symbol, Symbol]],
+    unchanged: list[Symbol],
+) -> None:
+    """Pair two symbol lists by index; surplus on either side is add/delete."""
+    pair_count = min(len(before_syms), len(after_syms))
+    for b, a in zip(before_syms[:pair_count], after_syms[:pair_count], strict=False):
+        if b.signature != a.signature:
+            signature_changed.append((b, a))
+        elif b.body_hash != a.body_hash:
+            body_changed.append((b, a))
+        else:
+            unchanged.append(a)
+    added.extend(after_syms[pair_count:])
+    deleted.extend(before_syms[pair_count:])
 
 
 def _scope_matches(claimed_scope: str, symbol: Symbol) -> bool:

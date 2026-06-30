@@ -190,6 +190,19 @@ def _walk(node, language: str, source: bytes, scope: str, out: list[Symbol]) -> 
                     sym_scope = qual
                     if effective_kind == "function":
                         effective_kind = "method"
+            # Go methods (``func (s *Server) Handle() {}``) sit at file level so
+            # the walk-scope is empty, yet the receiver type (``Server``) is the
+            # method's real owning scope. The MCP docstring tells agents ``scope``
+            # is the "containing class/module name", so an agent emits scoped
+            # claims for Go methods — and without the receiver as scope every
+            # scoped claim false-fails a truthful edit. Read it from the receiver
+            # parameter_list and key the method identically to a C++ out-of-line
+            # method, so a free ``func Handle`` and a method ``Handle`` no longer
+            # collide at scope=''.
+            elif language == "go" and node.type == "method_declaration":
+                recv = _go_receiver_scope(node, source)
+                if recv:
+                    sym_scope = recv
             sig = _signature_text(value_node or node, source)
             body_h = _body_hash(value_node or node, source)
             out.append(
@@ -279,6 +292,70 @@ def _cpp_qualifier_scope(node, source: bytes) -> str | None:
         if declarator.type in {"identifier", "field_identifier", "destructor_name"}:
             return None
         declarator = declarator.child_by_field_name("declarator")
+    return None
+
+
+def _go_receiver_scope(node, source: bytes) -> str | None:
+    """Return the receiver type name of a Go ``method_declaration``, or ``None``.
+
+    For ``func (s *Server) Handle(a int) {}`` the receiver lives in the FIRST
+    ``parameter_list`` child (before the method name): a single
+    ``parameter_declaration`` whose ``type`` field is a ``type_identifier``
+    (value receiver ``s Server``) or a ``pointer_type`` wrapping one (pointer
+    receiver ``s *Server``). Generic receivers like ``(s *Stack[T])`` use a
+    ``generic_type`` whose own ``type`` field is the base ``type_identifier``.
+    Returns the bare type name (``Server`` / ``Stack``) so the method keys by
+    scope the same way a C++ out-of-line method does. ``None`` if no receiver is
+    found (defensive — a ``method_declaration`` always has one in valid Go).
+    """
+    # The receiver parameter_list is the first parameter_list child; the second
+    # (if any) is the method's own parameters.
+    recv_list = None
+    for child in node.children:
+        if child.type == "parameter_list":
+            recv_list = child
+            break
+    if recv_list is None:
+        return None
+    for decl in recv_list.children:
+        if decl.type != "parameter_declaration":
+            continue
+        type_node = decl.child_by_field_name("type")
+        if type_node is None:
+            continue
+        name = _go_unwrap_type_name(type_node, source)
+        if name:
+            return name
+    return None
+
+
+def _go_unwrap_type_name(type_node, source: bytes) -> str | None:
+    """Peel ``*T`` / ``T[U]`` wrappers down to the base ``type_identifier`` text."""
+    node = type_node
+    # Unwrap pointer_type (``*Server``) and generic_type (``Stack[T]``) to the
+    # underlying named type. Guard the loop so a malformed tree can't spin.
+    for _ in range(8):
+        if node is None:
+            return None
+        if node.type == "type_identifier":
+            return _node_text(node, source)
+        if node.type == "pointer_type":
+            inner = node.child_by_field_name("type")
+            node = inner if inner is not None else _first_type_child(node)
+            continue
+        if node.type == "generic_type":
+            inner = node.child_by_field_name("type")
+            node = inner if inner is not None else _first_type_child(node)
+            continue
+        # Fallback: a directly-nested type_identifier child.
+        node = _first_type_child(node)
+    return None
+
+
+def _first_type_child(node):
+    for child in node.children:
+        if child.type in {"type_identifier", "pointer_type", "generic_type"}:
+            return child
     return None
 
 
