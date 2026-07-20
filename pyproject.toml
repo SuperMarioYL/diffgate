@@ -8,7 +8,7 @@ version = "0.5.0"
 description = "Structural verification gate for coding agents — fails the agent loop when claimed edits don't match the AST diff."
 readme = "README.md"
 requires-python = ">=3.12"
-license = { text = "MIT" }
+license = { text = "Apache-2.0" }
 authors = [
     { name = "supermario_leo", email = "leo.stack@outlook.com" },
 ]
@@ -25,7 +25,7 @@ keywords = [
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: MIT License",
+    "License :: OSI Approved :: Apache Software License",
     "Operating System :: MacOS",
     "Operating System :: POSIX :: Linux",
     "Programming Language :: Python :: 3.12",
