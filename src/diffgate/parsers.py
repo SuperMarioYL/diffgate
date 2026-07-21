@@ -46,6 +46,11 @@ LANGUAGE_RULES: dict[str, dict[str, tuple[str, None]]] = {
         "interface_declaration": ("class", None),
         # `export const handler = (req) => {}` / `const foo = function(){}`
         "variable_declarator": ("function", None),
+        # `class Handler { handle = (req) => {} }` — the class-property arrow-function
+        # form (the canonical bound-callback pattern in Angular/NestJS controllers,
+        # Three.js scene classes, React class components). Without it the property is
+        # invisible and a truthful scoped `add handle scope=Handler` false-fails.
+        "public_field_definition": ("function", None),
     },
     "tsx": {
         "function_declaration": ("function", None),
@@ -53,12 +58,17 @@ LANGUAGE_RULES: dict[str, dict[str, tuple[str, None]]] = {
         "method_definition": ("method", None),
         "interface_declaration": ("class", None),
         "variable_declarator": ("function", None),
+        # Same class-property arrow-function form as typescript.
+        "public_field_definition": ("function", None),
     },
     "javascript": {
         "function_declaration": ("function", None),
         "class_declaration": ("class", None),
         "method_definition": ("method", None),
         "variable_declarator": ("function", None),
+        # JS calls the class-property node `field_definition` (no `public_` prefix);
+        # same arrow/function-expression value guard as ts/tsx above.
+        "field_definition": ("function", None),
     },
     "go": {
         "function_declaration": ("function", None),
@@ -156,12 +166,13 @@ def _walk(node, language: str, source: bytes, scope: str, out: list[Symbol]) -> 
 
     next_scope = scope
     if rule is not None:
-        # TS/JS `variable_declarator` is only a symbol when its value is an
-        # arrow function or function expression — `const x = 5` is data, not
-        # a callable. Resolve the function-bearing node so name/signature/body
-        # extraction targets the right place.
+        # TS/JS `variable_declarator` (and its class-property forms
+        # `public_field_definition` / `field_definition`) is only a symbol when its
+        # value is an arrow function or function expression — `const x = 5` /
+        # `count = 0` are data, not callables. Resolve the function-bearing node so
+        # name/signature/body extraction targets the right place.
         value_node = None
-        if node.type == "variable_declarator":
+        if node.type in ("variable_declarator", "public_field_definition", "field_definition"):
             value_node = node.child_by_field_name("value")
             if value_node is None or value_node.type not in _FUNCTION_VALUE_NODE_TYPES:
                 for child in node.children:
@@ -217,6 +228,20 @@ def _walk(node, language: str, source: bytes, scope: str, out: list[Symbol]) -> 
             )
             if effective_kind in SCOPE_NODE_KINDS:
                 next_scope = f"{scope}.{name}" if scope else name
+    elif language == "rust" and node.type == "impl_item":
+        # Rust `impl` blocks (`impl Foo { fn bar() {} }`, `impl Trait for Baz {}`)
+        # own their methods but aren't Symbols themselves (impl_item isn't in
+        # LANGUAGE_RULES), so without this branch the walk-scope passed to child
+        # `function_item`s stays '' and a method `fn bar` is emitted with
+        # kind=function scope=''. The MCP docstring tells agents `scope` is the
+        # containing type, so an agent emits `add bar scope=Foo` — and that truthful
+        # scoped claim false-fails. Read the implementing type from the impl_item
+        # `type` field and propagate it as next_scope so child fn's key by scope=Foo
+        # and are promoted to method by the existing effective_kind rule, the same
+        # way a C++ out-of-line method or Go receiver method does.
+        impl_type = _rust_impl_type_name(node, source)
+        if impl_type:
+            next_scope = f"{scope}.{impl_type}" if scope else impl_type
 
     for child in node.children:
         _walk(child, language, source, next_scope, out)
@@ -356,6 +381,29 @@ def _first_type_child(node):
     for child in node.children:
         if child.type in {"type_identifier", "pointer_type", "generic_type"}:
             return child
+    return None
+
+
+def _rust_impl_type_name(node, source: bytes) -> str | None:
+    """Return the implementing type name of a Rust ``impl_item``, or ``None``.
+
+    For ``impl Foo { fn bar() {} }`` the ``type`` field is a ``type_identifier``
+    (``Foo``). For ``impl Trait for Baz { fn qux() {} }`` the ``type`` field is the
+    implementing type ``Baz`` (the trait is on the separate ``trait`` field). For
+    ``impl Foo<T> { fn bar() {} }`` the ``type`` field is a ``generic_type`` whose own
+    ``type`` child is the base ``type_identifier`` — unwrap it so the scope is the bare
+    type name, mirroring :func:`_go_unwrap_type_name`. ``None`` if the type can't be
+    resolved (defensive — a malformed tree).
+    """
+    type_node = node.child_by_field_name("type")
+    if type_node is None:
+        return None
+    if type_node.type == "generic_type":
+        base = type_node.child_by_field_name("type")
+        if base is not None:
+            type_node = base
+    if type_node.type == "type_identifier":
+        return _node_text(type_node, source)
     return None
 
 

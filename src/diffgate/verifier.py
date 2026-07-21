@@ -180,6 +180,21 @@ def verify(claim: EditClaim) -> Verdict:
     )
 
 
+def compute_diff(before_blob: str, after_blob: str, language: str) -> StructuralDiff:
+    """Return the structural AST diff between two source blobs.
+
+    This is the diff half of the §2 "Core data primitive" — ``verify`` checks a
+    claim against this diff, but an agent (or a CI audit step) can also inspect the
+    diff directly to self-correct a failed claim or to generate a truthful
+    ``claimed_actions`` payload before staking one. Thin public wrapper over the
+    private :func:`_compute_diff` so the diff stays computed by exactly one code
+    path; no new verification logic.
+    """
+    before_symbols = parsers.parse_symbols(before_blob, language)
+    after_symbols = parsers.parse_symbols(after_blob, language)
+    return _compute_diff(before_symbols, after_symbols)
+
+
 @dataclass
 class FileClaim:
     """One file's worth of an edit that spans multiple files.

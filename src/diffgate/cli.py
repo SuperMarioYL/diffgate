@@ -28,7 +28,9 @@ from .verifier import (
     ClaimedAction,
     EditClaim,
     FileClaim,
+    StructuralDiff,
     Verdict,
+    compute_diff,
     verify,
     verify_multi,
 )
@@ -318,6 +320,67 @@ def _run_multi_file(
     raise typer.Exit(code=0 if verdict.passed else 1)
 
 
+@app.command("diff")
+def diff_cmd(
+    before: Path = typer.Option(
+        None,
+        "--before",
+        exists=True,
+        file_okay=True,
+        dir_okay=False,
+        readable=True,
+        help="Path to the file BEFORE the edit.",
+    ),
+    after: Path = typer.Option(
+        None,
+        "--after",
+        exists=True,
+        file_okay=True,
+        dir_okay=False,
+        readable=True,
+        help="Path to the file AFTER the edit.",
+    ),
+    language: str = typer.Option(
+        "auto",
+        "--lang",
+        help=(
+            "Source language: python|typescript|tsx|javascript|go|rust|"
+            "java|cpp|ruby|auto."
+        ),
+    ),
+    json_output: bool = typer.Option(
+        False,
+        "--json",
+        help="Emit a machine-readable JSON structural diff instead of the human table.",
+    ),
+) -> None:
+    """Print the structural AST diff between two files (no claim required).
+
+    Unlike ``verify``, which checks a *claim* against the diff, ``diff`` just shows
+    what the AST diff actually contains — added / deleted / signature-changed /
+    body-changed symbols, with their scopes and signatures. An agent (or a CI audit
+    step) can use it to self-correct a failed claim, to audit what an edit touched,
+    or to draft a truthful ``claimed_actions`` payload before staking a claim.
+    """
+    if before is None or after is None:
+        _console_stderr.print(
+            "[bold red]error:[/bold red] diff needs --before and --after."
+        )
+        raise typer.Exit(code=2)
+    lang = _detect_language(before, language)
+    diff = compute_diff(
+        before.read_text(encoding="utf-8"),
+        after.read_text(encoding="utf-8"),
+        lang,
+    )
+    if json_output:
+        json.dump(diff.to_dict(), sys.stdout, indent=2, ensure_ascii=False)
+        sys.stdout.write("\n")
+    else:
+        _render_diff(diff, before, after, lang)
+    raise typer.Exit(code=0)
+
+
 @app.command("mcp-server")
 def mcp_server_cmd(
     stdio: bool = typer.Option(
@@ -507,6 +570,51 @@ def _render_verdict(verdict: Verdict, before: Path, after: Path, lang: str) -> N
                 sym = f"{sym}  [dim](scope: {m.action.scope})[/dim]"
             table.add_row(m.action.kind, sym, m.reason)
         _console_stdout.print(table)
+
+    _console_stdout.print(
+        f"\n[dim]Structural diff: +{len(diff.added)} added · "
+        f"-{len(diff.deleted)} deleted · "
+        f"~{len(diff.signature_changed)} sig_changed · "
+        f"…{len(diff.body_changed)} body_changed · "
+        f"={len(diff.unchanged)} unchanged[/dim]"
+    )
+
+
+def _render_diff(diff: StructuralDiff, before: Path, after: Path, lang: str) -> None:
+    """Human-readable structural diff — the symbol names an edit actually touched."""
+    _console_stdout.print(
+        f"[dim]{before.name}[/dim] [bold]→[/bold] [dim]{after.name}[/dim]  "
+        f"[dim]({lang})[/dim]"
+    )
+    if diff.is_noop():
+        _console_stdout.print("[dim]no structural change detected[/dim]")
+        return
+
+    if diff.added:
+        _console_stdout.print("[bold green]+ added[/bold green]")
+        for s in diff.added:
+            _console_stdout.print(f"  {s.name} [dim]({s.kind})[/dim]"
+                                  + (f"  [dim](scope: {s.scope})[/dim]" if s.scope else "")
+                                  + (f"  [dim]{s.signature}[/dim]" if s.signature else ""))
+    if diff.deleted:
+        _console_stdout.print("[bold red]- deleted[/bold red]")
+        for s in diff.deleted:
+            _console_stdout.print(f"  {s.name} [dim]({s.kind})[/dim]"
+                                  + (f"  [dim](scope: {s.scope})[/dim]" if s.scope else "")
+                                  + (f"  [dim]{s.signature}[/dim]" if s.signature else ""))
+    if diff.signature_changed:
+        _console_stdout.print("[bold yellow]~ signature changed[/bold yellow]")
+        for b, a in diff.signature_changed:
+            _console_stdout.print(
+                f"  {b.name} [dim]({b.kind})[/dim]"
+                + (f"  [dim](scope: {b.scope})[/dim]" if b.scope else "")
+                + f"  [dim]{b.signature} → {a.signature}[/dim]"
+            )
+    if diff.body_changed:
+        _console_stdout.print("[bold magenta]… body changed[/bold magenta]")
+        for b, _a in diff.body_changed:
+            _console_stdout.print(f"  {b.name} [dim]({b.kind})[/dim]"
+                                  + (f"  [dim](scope: {b.scope})[/dim]" if b.scope else ""))
 
     _console_stdout.print(
         f"\n[dim]Structural diff: +{len(diff.added)} added · "

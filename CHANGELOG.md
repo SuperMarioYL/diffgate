@@ -6,6 +6,46 @@ All notable changes to DiffGate are documented here. Format follows
 
 ## [Unreleased]
 
+## [0.6.0]
+
+Two more correctness fixes that close the last known over-flag holes in the
+multi-language verifier core (Rust `impl` methods and TS/JS class arrow-function
+properties), plus a new `diffgate diff` subcommand that exposes the structural AST
+diff as a first-class output — not just a gate verdict.
+
+### Added
+- **`diffgate diff` subcommand + public `compute_diff`.** The structural diff
+  (`StructuralDiff`: added / deleted / signature_changed / body_changed) was
+  previously only reachable as a field inside a `verify` Verdict. The private
+  `_compute_diff` is now exposed as a public `compute_diff(before_blob, after_blob,
+  language)` in `verifier.py`, and a new `diffgate diff --before X --after Y --lang`
+  CLI subcommand renders the diff's symbol names / scopes / signatures in a `rich`
+  table (`--json` for a machine-readable `StructuralDiff.to_dict()` payload). An
+  agent or CI step can now inspect the real diff to self-correct a failed claim or
+  draft a truthful `claimed_actions` payload before staking one — the diff half of
+  the "Core data primitive", with zero new verification logic.
+
+### Fixed
+- **Rust `impl`-block methods carry their implementing type as scope.** A method
+  inside `impl Foo { fn bar() {} }` parsed with `kind=function` and `scope=''`
+  because `_walk` never read the `impl` type, so a truthful scoped
+  `add bar scope=Foo` / `signature_change bar scope=Foo` returned `passed=False`
+  (the MCP docstring tells agents `scope` is the containing type). The impl type is
+  now read from the `impl_item` `type` field (unwrapping `impl Foo<T>` and
+  `impl Trait for Baz`) and propagated as the child scope so methods key by
+  `scope=Foo` and promote to `kind=method` — the same fix already shipped for C++
+  out-of-line methods and Go receiver methods. Rust was the last multi-language
+  verifier hole.
+- **TS/JS class arrow-function properties are visible.** `class Handler { handle =
+  (req) => {} }` — the canonical bound-callback pattern in Angular/NestJS
+  controllers, Three.js scene classes, and React class components — was never emitted
+  as a Symbol because `LANGUAGE_RULES` mapped `variable_declarator` (the module-level
+  `const handler = () => {}` form fixed in v0.3.0) but not `public_field_definition`
+  (ts/tsx) / `field_definition` (js). A truthful `add handle scope=Handler` therefore
+  returned `passed=False`. The two field node types are now mapped and the `_walk`
+  value-node guard generalized so only arrow/function values emit a symbol (a data
+  field like `count = 0` stays invisible).
+
 ## [0.5.0]
 
 Two correctness fixes that close the last known silent-lie / over-flag holes in
@@ -138,6 +178,10 @@ First public release covering the m1 milestone:
 - Claim kinds: `rename`, `add`, `delete`.
 - ≥20 hand-crafted silent-lie fixtures in `tests/fixtures/silent_lie_cases.json`.
 
-[Unreleased]: https://github.com/supermario-leo/diffgate/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/supermario-leo/diffgate/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/supermario-leo/diffgate/compare/v0.5.0...v0.6.0
+[0.5.0]: https://github.com/supermario-leo/diffgate/compare/v0.4.0...v0.5.0
+[0.4.0]: https://github.com/supermario-leo/diffgate/compare/v0.3.0...v0.4.0
+[0.3.0]: https://github.com/supermario-leo/diffgate/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/supermario-leo/diffgate/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/supermario-leo/diffgate/releases/tag/v0.1.0

@@ -55,8 +55,11 @@ A coding agent (Cursor / Claude Code / Codex / LangGraph) emits an **`EditClaim`
 ```bash
 pipx install diffgate                                          # ≤30s
 diffgate verify --before X.py --after X.py.new --claim "rename foo→bar"
+diffgate diff --before X.py --after X.py.new                   # just the structural diff, no verdict (--json machine-readable)
 diffgate mcp-server --stdio                                    # register in Claude Code / Cursor mcp.json
 ```
+
+> `verify` takes an `EditClaim` and **judges** it against the structural diff; `diff` prints the structural diff (added / deleted / signature_changed / body_changed) as a first-class output — so an agent or CI step can inspect the real diff to self-correct a failed claim or draft a **truthful** `claimed_actions` before handing it to `verify`.
 
 Drop these three lines into `~/.config/claude-code/mcp.json` (or the Cursor equivalent):
 
@@ -158,6 +161,9 @@ Full config in `diffgate --help`.
 - [x] **m3 — `diffgate bench`**: replay traces, emit precision/recall
 - [x] **v0.2 — scope-aware verification**: strict `scope` matching that catches "class method vs same-named free function" confusion
 - [x] **v0.3 — CLI/MCP parity + more languages**: structured `--claim-file` (incl. stdin), multi-file verify, new Java / C++ / Ruby parsers, plus three silent-lie fixes
+- [x] **v0.4 — multi-language correctness + catch-rate badge**: fixed C++ out-of-line methods / Java records / `.h` header extension / MCP+README language lists; README badge wired to a reproducible bench
+- [x] **v0.5 — multi-language verifier cleanup**: overloads pair by content (C++/Java overload reorder no longer fabricates a sig change), Go methods carry their receiver type as scope
+- [x] **v0.6 — `diffgate diff` + last two over-flag fixes**: new `diffgate diff` subcommand exposes the structural diff as a first-class output; Rust `impl`-block methods and TS/JS class arrow-function properties (`handle = (req) => {}`) now carry the correct scope
 - [ ] **DiffGate Cloud** (paid): cross-team catch-rate aggregation, SSO, Prometheus exporter
 - [ ] **framework integrations**: official optional gate in LangGraph / Mastra / Autogen
 
