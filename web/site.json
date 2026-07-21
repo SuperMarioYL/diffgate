@@ -1,0 +1,67 @@
+{
+  "schema": 1,
+  "name": "diffgate",
+  "github": "https://github.com/SuperMarioYL/diffgate",
+  "host": "diffgate.lei6393.com",
+  "lang": { "primary": "zh", "toggle": true },
+  "accent": ["#2dd4bf"],
+  "hero": {
+    "eyebrow": { "zh": "本地 · 零配置 · 开源", "en": "Local · Zero-config · Open-source" },
+    "headline": {
+      "zh": "Agent 说改完了？\nAST 对不上就打回重试",
+      "en": "Agent says \"done\"?\nSend it back when the AST disagrees"
+    },
+    "sub": {
+      "zh": "改前改后两份代码逐一比对，改没改、改对没，对得上才放行 —— 全程本地、离线、一条命令安装。",
+      "en": "After every edit, the before/after code is compared structurally — the loop only continues when the change the agent claims actually happened. Local, offline, one command to install."
+    },
+    "command": "diffgate verify --before X.py --after X.py.new --claim \"rename foo→bar\"",
+    "cta": { "zh": "查看 GitHub", "en": "View on GitHub" },
+    "ctaGithub": { "zh": "源码 / Issues", "en": "Source / Issues" },
+    "scroll": { "zh": "往下看怎么工作", "en": "See how it works" }
+  },
+  "advantages": [
+    {
+      "title": { "zh": "改了还是没改？一条命令见分晓", "en": "Did it actually edit? One command tells." },
+      "body": {
+        "zh": "Agent 声称把 foo 改成了 bar，DiffGate 逐条核对声明的动作和真实的代码差异，对不上就亮红灯退出 —— 安静的谎变成吵闹的错。",
+        "en": "The agent claims it renamed foo to bar; DiffGate checks each claimed action against the real code delta and exits red on a mismatch — a silent lie becomes a loud error."
+      },
+      "chips": ["› 9 种语言", "› 退出码 0 / 1 即裁决"]
+    },
+    {
+      "title": { "zh": "挂进 Agent，每一步编辑都过门", "en": "Wire it into the agent — every edit gets checked" },
+      "body": {
+        "zh": "注册一个 MCP 工具，Agent 每改一个文件就自检一次；对不上就把失败原因塞回去，让 Agent 自己重试，而不是等到用户发现 bug。",
+        "en": "Register one MCP tool and the agent self-checks after every file edit; on a mismatch it feeds the failure reason back to the agent to retry — instead of waiting for the user to find the bug."
+      },
+      "chips": ["› MCP 协议", "› Claude Code / Cursor / Codex"]
+    },
+    {
+      "title": { "zh": "先看真实改了什么，再下结论", "en": "See what really changed, before you trust it" },
+      "body": {
+        "zh": "一条命令打印这次编辑到底加了什么、删了什么、改了哪处签名 —— Agent 拿着真实改动自我纠错，或据此写一条诚实的声明再交校验。",
+        "en": "One command prints what the edit actually added, deleted, or signature-changed — so the agent can self-correct from the real delta, or draft an honest claim before handing it to the gate."
+      },
+      "chips": ["› added / deleted / changed", "› --json 机器可读"]
+    },
+    {
+      "title": { "zh": "9 种语言，同一道门", "en": "Nine languages, one gate" },
+      "body": {
+        "zh": "Python / TypeScript / TSX / JavaScript / Go / Rust / Java / C++ / Ruby 全覆盖 —— 类方法、同名重载、带外定义都能按作用域精确对齐，不在哪门语言上漏过。",
+        "en": "Python / TypeScript / TSX / JavaScript / Go / Rust / Java / C++ / Ruby — class methods, same-name overloads, and out-of-line definitions all align by scope, so no language slips through."
+      },
+      "chips": ["› py · ts · go · rs · java · cpp · ruby", "› 作用域严格匹配"]
+    }
+  ],
+  "scene": { "kind": "hub-nodes", "nodes": ["Claude Code", "Cursor", "Codex", "LangGraph"] },
+  "cta": {
+    "headline": { "zh": "给你的 Agent 装一道关", "en": "Give your agent a gate" },
+    "sub": {
+      "zh": "本地运行，Apache-2.0 开源，单条命令安装，无账号、无守护进程、无网络。",
+      "en": "Runs locally, Apache-2.0 open-source, one command to install — no account, no daemon, no network."
+    },
+    "button": { "zh": "pipx install diffgate", "en": "pipx install diffgate" }
+  },
+  "footer": { "tag": { "zh": "把安静的谎，变成吵闹的错。", "en": "Turn silent lies into loud errors." } }
+}
