@@ -444,6 +444,26 @@ def _check_rename(action: ClaimedAction, diff: StructuralDiff) -> Mismatch | Non
         s.name == action.new_symbol and _scope_matches(action.scope, s)
         for s in diff.added
     )
+    # A scoped rename that pins the *wrong* scope used to fall through to the
+    # "neither name appears in the structural diff (no-op edit)" message below
+    # — factually wrong, since the old and/or new name IS present, just in a
+    # different scope than the claim pinned. Mirror the scope-mismatch branch
+    # already in _check_add: the claim names a scope, neither half matched in
+    # that scope, but at least one half matches in a different scope. Use
+    # boolean ``or`` (not a single ``any`` over both lists) so each name is
+    # checked against its own diff half, and gate each half on ``not
+    # old_deleted`` / ``not new_added`` so a rename that DID land one half in
+    # the claimed scope still falls through to the precise "still present" /
+    # "target not found" reasons instead of a spurious scope-mismatch.
+    if action.scope and (
+        (not old_deleted and any(s.name == action.symbol for s in diff.deleted))
+        or (not new_added and any(s.name == action.new_symbol for s in diff.added))
+    ):
+        return Mismatch(
+            action,
+            f"claimed rename: '{action.symbol}→{action.new_symbol}' happened, "
+            f"but not in scope '{_scope_label(action.scope)}'",
+        )
     if not old_deleted and not new_added:
         return Mismatch(
             action,
@@ -504,6 +524,19 @@ def _check_delete(
             action,
             f"claimed delete: '{action.symbol}'{scope_note} is still present in "
             f"the after-blob",
+        )
+    # A scoped delete that pins the *wrong* scope used to fall through to the
+    # "was not present in either blob (no-op)" message below — factually wrong,
+    # since the symbol WAS present in the before-blob (just in a different
+    # scope) and was genuinely deleted from that other scope. Mirror the
+    # scope-mismatch branch already in _check_add. Ordered AFTER the "still
+    # present in claimed scope" check so a symbol that's still alive in the
+    # claimed scope keeps its more accurate "is still present" reason.
+    if action.scope and any(s.name == action.symbol for s in diff.deleted):
+        return Mismatch(
+            action,
+            f"claimed delete: '{action.symbol}' was deleted, but not in scope "
+            f"'{_scope_label(action.scope)}'",
         )
     return Mismatch(
         action,

@@ -358,7 +358,7 @@
     },
     {
       "case_id": "py_rename_wrong_scope_031",
-      "description": "Scope lie: agent claims it renamed method A.run→start, but A.run is untouched — only the module-level run() was renamed to start().",
+      "description": "Scope lie: agent claims it renamed method A.run→start, but A.run is untouched — only the module-level run() was renamed to start(). As of v0.7.0 the misleading 'no-op edit' reason was replaced with an accurate scope-mismatch reason (the rename DID happen, just not in the claimed scope), mirroring _check_add.",
       "language": "python",
       "before": "class A:\n    def run(self):\n        return 1\n\ndef run():\n    return 2\n",
       "after": "class A:\n    def run(self):\n        return 1\n\ndef start():\n    return 2\n",
@@ -366,7 +366,7 @@
         {"kind": "rename", "symbol": "run", "new_symbol": "start", "scope": "A"}
       ],
       "expected_passed": false,
-      "expected_mismatch_substring": "no-op"
+      "expected_mismatch_substring": "not in scope 'A'"
     },
     {
       "case_id": "py_add_scope_truth_032",

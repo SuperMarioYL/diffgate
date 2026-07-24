@@ -24,6 +24,7 @@ from rich.console import Console
 from rich.table import Table
 
 from . import __version__
+from .parsers import SUPPORTED_LANGUAGES
 from .verifier import (
     ClaimedAction,
     EditClaim,
@@ -259,7 +260,18 @@ def verify_cmd(
         claimed_actions=actions,
     )
 
-    verdict = verify(edit)
+    try:
+        # ``_detect_language`` already validates ``--lang`` against
+        # SUPPORTED_LANGUAGES, so an ``UnsupportedLanguageError`` (a
+        # ``ValueError`` subclass) shouldn't reach here — but catch any
+        # ``ValueError`` ``verify`` raises anyway so a bad language surfaces
+        # as a clean exit-2 usage error instead of a traceback at exit 1
+        # (indistinguishable from a failed verification to an agent gating on
+        # exit code).
+        verdict = verify(edit)
+    except ValueError as exc:
+        _console_stderr.print(f"[bold red]verify error:[/bold red] {exc}")
+        raise typer.Exit(code=2) from exc
 
     if json_output:
         json.dump(verdict.to_dict(), sys.stdout, indent=2, ensure_ascii=False)
@@ -302,7 +314,7 @@ def _run_multi_file(
                 language=entry_lang,
                 claimed_actions=actions,
             )
-        except (OSError, typer.BadParameter) as exc:
+        except (OSError, typer.BadParameter, ValueError) as exc:
             _console_stderr.print(
                 f"[bold red]claim-file error:[/bold red] {label}: {exc}"
             )
@@ -483,7 +495,21 @@ def _claim_file_base_dir(payload: dict, claim_file: str) -> Path:
 
 def _detect_language(path: Path, override: str) -> str:
     if override and override.lower() != "auto":
-        return override.lower()
+        lang = override.lower()
+        # An explicit non-`auto` ``--lang`` used to be returned UNCHECKED, so a
+        # typo like ``--lang python2`` propagated an ``UnsupportedLanguageError``
+        # (a ``ValueError`` subclass) as an unhandled traceback at exit 1 —
+        # indistinguishable from a failed verification to an agent gating on
+        # exit code. Validate against the parser's supported set here so the
+        # bad value surfaces as a clean exit-2 usage error before ``verify``
+        # is ever called (mirrors the existing BadParameter for the inference
+        # failure path).
+        if lang not in SUPPORTED_LANGUAGES:
+            raise typer.BadParameter(
+                f"language {lang!r} not supported "
+                f"(supported: {', '.join(SUPPORTED_LANGUAGES)})"
+            )
+        return lang
     lang = EXT_TO_LANG.get(path.suffix.lower())
     if lang is None:
         raise typer.BadParameter(

@@ -6,6 +6,49 @@ All notable changes to DiffGate are documented here. Format follows
 
 ## [Unreleased]
 
+## [0.7.0]
+
+Two correctness fixes that make the gate's failure reasons truthful and its exit
+codes unambiguous: a scoped delete/rename claim that pins the wrong scope no
+longer lies that the symbol "was not present", and an invalid `--lang` no longer
+leaks a Python traceback at exit 1.
+
+### Fixed
+- **Scoped delete/rename no longer report a misleading "no-op" when the wrong
+  scope is pinned.** A scoped `delete foo scope=B` or `rename foo→bar scope=C`
+  that pins the *wrong* scope used to fall through to a factually-wrong
+  "was not present in either blob (no-op)" / "neither name appears in the
+  structural diff (no-op edit)" message — the symbol IS present, just in a
+  different scope than the claim named. The verdict still FAILed (so the gate
+  was honest), but the reason text lied about *why*, which misleads an agent
+  retry-loop or a human reviewer into "fixing" a no-op that isn't one.
+  `_check_delete` and `_check_rename` now mirror the scope-mismatch branch
+  already in `_check_add` / `_check_signature_change`: when the claim names a
+  scope and the symbol (or rename target) is present in a *different* scope, the
+  reason becomes "was deleted / happened, but not in scope '<claimed>'" — the
+  same accurate shape `'helper' was added, but not in scope 'MyClass'` already
+  uses. The `_check_rename` branch uses boolean `or` (one `any` per diff half,
+  the old name against `diff.deleted` and `action.new_symbol` against
+  `diff.added`) and is gated on `not old_deleted` / `not new_added` so a rename
+  that did land one half in the claimed scope keeps its precise "target not
+  found" / "original still present" reason; `_check_delete`'s branch is ordered
+  after the "still present in claimed scope" check so a symbol still alive in
+  the claimed scope keeps its "is still present" reason.
+- **`diffgate verify --lang <invalid>` exits 2, not a traceback at exit 1.** An
+  explicit non-`auto` `--lang` value used to be returned by `_detect_language`
+  UNCHECKED, so a typo like `--lang python2` propagated an
+  `UnsupportedLanguageError` (a `ValueError` subclass) as an unhandled traceback
+  and exited 1 — indistinguishable from a failed verification to an agent or CI
+  hook gating on exit code. `_detect_language` now validates the explicit
+  `--lang` against `parsers.SUPPORTED_LANGUAGES` and raises `typer.BadParameter`
+  for a clean exit-2 usage error before `verify` is ever called, mirroring the
+  existing BadParameter path for the language-inference failure. As
+  belt-and-suspenders the single-file `verify(...)` call site is wrapped to
+  catch any `ValueError` → exit 2, and the `_run_multi_file` `except` was
+  extended from `(OSError, typer.BadParameter)` to also catch the `ValueError`
+  subclass (so a bad per-entry language in a multi-file claim file is a clean
+  exit-2 too).
+
 ## [0.6.0]
 
 Two more correctness fixes that close the last known over-flag holes in the
@@ -178,7 +221,8 @@ First public release covering the m1 milestone:
 - Claim kinds: `rename`, `add`, `delete`.
 - ≥20 hand-crafted silent-lie fixtures in `tests/fixtures/silent_lie_cases.json`.
 
-[Unreleased]: https://github.com/supermario-leo/diffgate/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/supermario-leo/diffgate/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/supermario-leo/diffgate/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/supermario-leo/diffgate/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/supermario-leo/diffgate/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/supermario-leo/diffgate/compare/v0.3.0...v0.4.0
