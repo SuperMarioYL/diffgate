@@ -44,6 +44,14 @@ LANGUAGE_RULES: dict[str, dict[str, tuple[str, None]]] = {
         "method_definition": ("method", None),
         "method_signature": ("method", None),
         "interface_declaration": ("class", None),
+        # `enum Color { Red, Green }` and `const enum Color { Red }` — the last
+        # common nominal-type declaration still invisible in TS/TSX. Without this
+        # a TS enum yields zero symbols, so a truthful `add Color` / `rename
+        # Color→Hue` false-fails (the no-op net even calls the rename a no-op).
+        # Mapped as a class exactly like Java's `enum_declaration`; the enum name
+        # comes from the `name` field and the enumerator body is hashed via the
+        # standard `body` field, so no `_walk` changes are needed.
+        "enum_declaration": ("class", None),
         # `export const handler = (req) => {}` / `const foo = function(){}`
         "variable_declarator": ("function", None),
         # `class Handler { handle = (req) => {} }` — the class-property arrow-function
@@ -57,6 +65,8 @@ LANGUAGE_RULES: dict[str, dict[str, tuple[str, None]]] = {
         "class_declaration": ("class", None),
         "method_definition": ("method", None),
         "interface_declaration": ("class", None),
+        # Same `enum_declaration` / `const enum` coverage as typescript above.
+        "enum_declaration": ("class", None),
         "variable_declarator": ("function", None),
         # Same class-property arrow-function form as typescript.
         "public_field_definition": ("function", None),
@@ -99,6 +109,14 @@ LANGUAGE_RULES: dict[str, dict[str, tuple[str, None]]] = {
         "function_definition": ("function", None),
         "class_specifier": ("class", None),
         "struct_specifier": ("class", None),
+        # `enum Color { Red }`, `enum class Color { Red }`, and `enum struct` —
+        # all surface as the single `enum_specifier` node (the `class`/`struct`
+        # keyword is just a child token, not a separate node type). Without this
+        # a C++ enum yields zero symbols, so a truthful `add Color` / `rename
+        # Color→Hue` false-fails. Mapped as a class exactly like TS/Java enums;
+        # the `name` (type_identifier) and `body` (enumerator_list) fields feed
+        # the standard `_find_name` / `_body_hash` path with no `_walk` changes.
+        "enum_specifier": ("class", None),
     },
     "ruby": {
         "method": ("function", None),
