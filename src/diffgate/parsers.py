@@ -190,7 +190,11 @@ def _walk(node, language: str, source: bytes, scope: str, out: list[Symbol]) -> 
         # `count = 0` are data, not callables. Resolve the function-bearing node so
         # name/signature/body extraction targets the right place.
         value_node = None
-        if node.type in ("variable_declarator", "public_field_definition", "field_definition"):
+        if node.type in (
+            "variable_declarator",
+            "public_field_definition",
+            "field_definition",
+        ):
             value_node = node.child_by_field_name("value")
             if value_node is None or value_node.type not in _FUNCTION_VALUE_NODE_TYPES:
                 for child in node.children:
@@ -260,6 +264,84 @@ def _walk(node, language: str, source: bytes, scope: str, out: list[Symbol]) -> 
         impl_type = _rust_impl_type_name(node, source)
         if impl_type:
             next_scope = f"{scope}.{impl_type}" if scope else impl_type
+    elif language == "cpp" and node.type == "namespace_definition":
+        # C++ `namespace Foo { ... }` (and `namespace A::B { ... }`, the
+        # anonymous `namespace { ... }`) own their declarations but aren't
+        # Symbols themselves (namespace_definition isn't in LANGUAGE_RULES), so
+        # without this branch a free function `void bar()` inside the block is
+        # emitted with scope='' while the same logical symbol written out-of-line
+        # as `void Foo::bar() {}` correctly gets scope='Foo' (v0.4.0). The MCP
+        # docstring tells agents `scope` is the "containing class/module name",
+        # so an agent emits `signature_change bar scope=Foo` — and that truthful
+        # scoped claim false-fails on the (ubiquitous) namespace form. Read the
+        # block name and propagate it as next_scope so child declarations key by
+        # the namespace exactly as class members key by their class. Anonymous
+        # namespaces (no `name` field) leave next_scope unchanged. For a nested
+        # `namespace A::B` the name field is a nested_namespace_specifier whose
+        # text is `A::B`; take the final segment after the last `::` (``B``) as
+        # the block name, mirroring how `_cpp_declarator_name` unqualifies an
+        # out-of-line `Foo::bar` to ``bar``.
+        name_node = node.child_by_field_name("name")
+        if name_node is not None:
+            ns_name = _node_text(name_node, source).rsplit("::", 1)[-1].strip()
+            if ns_name:
+                next_scope = f"{scope}.{ns_name}" if scope else ns_name
+    elif language in {"typescript", "tsx"} and node.type in {
+        "internal_module",
+        "module",
+    }:
+        # TS/TSX `namespace Foo { ... }` (an `internal_module`) and `module Foo
+        # { ... }` own their declarations but aren't Symbols themselves, so
+        # without this branch a function inside the block is emitted with
+        # scope='' — the same over-flag class the C++ namespace branch above
+        # closes. The MCP docstring tells agents `scope` is the "containing
+        # class/module name", so an agent emits `signature_change bar scope=Foo`
+        # and that truthful scoped claim false-fails on the namespace form. Read
+        # the `identifier` name child and propagate it as next_scope. Ambient
+        # `declare module "x" { ... }` (a `string` name, not an `identifier`) is
+        # skipped — it has no nominal scope an agent would claim against, and
+        # emitting a string-named scope would never match a real claim.
+        name_node = node.child_by_field_name("name")
+        if name_node is not None and name_node.type == "identifier":
+            ns_name = _node_text(name_node, source)
+            if ns_name:
+                next_scope = f"{scope}.{ns_name}" if scope else ns_name
+    elif language == "cpp" and node.type in {"declaration", "field_declaration"}:
+        # A C++ method *declaration* (no body — the canonical ``.h`` header form)
+        # sits in a ``declaration`` (free-standing, e.g. ``void bar();``) or
+        # ``field_declaration`` (inside a struct/class, e.g. ``struct Foo { void
+        # bar(); };``) whose declarator chain holds a ``function_declarator``.
+        # Without this branch such a declaration yields zero symbols — ``struct
+        # Foo { void bar(); };`` parses to only the ``Foo`` class — so a truthful
+        # ``signature_change bar scope=Foo`` / ``add bar`` false-fails (the
+        # dominant C++ header edit surface an agent touches). Emit a
+        # function/method symbol mirroring the ``function_definition`` path but
+        # with an empty ``body_hash`` (a prototype has no body). A
+        # ``declaration``/``field_declaration`` whose declarator is NOT a
+        # ``function_declarator`` (``int x;``, ``int y = 5;``, a data field)
+        # stays invisible — data, not a callable. Java abstract methods
+        # (``method_declaration``) and TS ``method_signature`` already do this.
+        func_decl = _cpp_function_declarator(node)
+        if func_decl is not None:
+            name = _cpp_declarator_name(node, source)
+            if name:
+                effective_kind = "method" if scope else "function"
+                sym_scope = scope
+                qual = _cpp_qualifier_scope(node, source)
+                if qual:
+                    sym_scope = qual
+                    if effective_kind == "function":
+                        effective_kind = "method"
+                out.append(
+                    Symbol(
+                        name=name,
+                        kind=effective_kind,
+                        signature=_signature_text(node, source),
+                        scope=sym_scope,
+                        body_hash="",
+                        line=node.start_point[0] + 1,
+                    )
+                )
 
     for child in node.children:
         _walk(child, language, source, next_scope, out)
@@ -333,6 +415,33 @@ def _cpp_qualifier_scope(node, source: bytes) -> str | None:
             # ``::bar`` (global) has an empty qualifier — no meaningful scope.
             return qual or None
         if declarator.type in {"identifier", "field_identifier", "destructor_name"}:
+            return None
+        declarator = declarator.child_by_field_name("declarator")
+    return None
+
+
+def _cpp_function_declarator(node):
+    """Return the ``function_declarator`` in a cpp ``declaration`` /
+    ``field_declaration`` declarator chain, or ``None`` for data.
+
+    A C++ method *declaration* (no body — the canonical ``.h`` header form) sits
+    in a ``declaration`` (free-standing, e.g. ``void bar();``) or
+    ``field_declaration`` (inside a struct/class, e.g. ``struct Foo { void
+    bar(); };``) whose declarator chain holds a ``function_declarator``. A data
+    field (``int x;``, ``int y = 5;``) does not. This discriminator excludes
+    data declarations from being emitted as callable symbols so ``int x;`` stays
+    invisible while ``void bar();`` is emitted — the discriminator the plan calls
+    out as excluding ``int x;`` / ``using`` / field declarations.
+    """
+    declarator = node.child_by_field_name("declarator")
+    while declarator is not None:
+        if declarator.type == "function_declarator":
+            return declarator
+        # ``init_declarator`` (``int y = 5;``) and bare name leaves
+        # (``int x;`` → identifier / field_identifier) are data, not callables
+        # — stop so a function_declarator nested inside one is never mistaken
+        # for a method prototype.
+        if declarator.type in {"init_declarator", "identifier", "field_identifier"}:
             return None
         declarator = declarator.child_by_field_name("declarator")
     return None
@@ -451,7 +560,9 @@ def _body_hash(node, source: bytes) -> str:
         # `body` field — hash the whole node so a changed expression still
         # registers as a body change.
         if node.type in _FUNCTION_VALUE_NODE_TYPES:
-            return hashlib.sha256(_node_text(node, source).encode("utf-8")).hexdigest()[:12]
+            return hashlib.sha256(_node_text(node, source).encode("utf-8")).hexdigest()[
+                :12
+            ]
         return ""
     return hashlib.sha256(_node_text(body, source).encode("utf-8")).hexdigest()[:12]
 
