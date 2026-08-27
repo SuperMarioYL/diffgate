@@ -264,6 +264,24 @@ def _walk(node, language: str, source: bytes, scope: str, out: list[Symbol]) -> 
         impl_type = _rust_impl_type_name(node, source)
         if impl_type:
             next_scope = f"{scope}.{impl_type}" if scope else impl_type
+    elif language == "rust" and node.type == "mod_item":
+        # Rust `mod foo { ... }` owns its declarations but isn't a Symbol itself
+        # (mod_item isn't in LANGUAGE_RULES), so without this branch a free
+        # function `fn bar()` inside the block is emitted with scope='' — the
+        # same over-flag class already closed for `impl_item` above, C++/TS
+        # namespaces, and Go receivers. Rust `mod` is the language's primary
+        # namespace construct (`mod network { ... }`, `mod parser { ... }` are
+        # ubiquitous). The MCP docstring tells agents `scope` is the "containing
+        # class/module name", so an agent emits `signature_change bar scope=foo`
+        # and that truthful scoped claim false-fails. Read the mod's `identifier`
+        # name and propagate it as next_scope so child `function_item`s key by
+        # the module name exactly as C++ `namespace_definition` propagates its
+        # block name.
+        name_node = node.child_by_field_name("name")
+        if name_node is not None:
+            mod_name = _node_text(name_node, source).strip()
+            if mod_name:
+                next_scope = f"{scope}.{mod_name}" if scope else mod_name
     elif language == "cpp" and node.type == "namespace_definition":
         # C++ `namespace Foo { ... }` (and `namespace A::B { ... }`, the
         # anonymous `namespace { ... }`) own their declarations but aren't
@@ -278,14 +296,20 @@ def _walk(node, language: str, source: bytes, scope: str, out: list[Symbol]) -> 
         # the namespace exactly as class members key by their class. Anonymous
         # namespaces (no `name` field) leave next_scope unchanged. For a nested
         # `namespace A::B` the name field is a nested_namespace_specifier whose
-        # text is `A::B`; take the final segment after the last `::` (``B``) as
-        # the block name, mirroring how `_cpp_declarator_name` unqualifies an
-        # out-of-line `Foo::bar` to ``bar``.
+        # text is the full path `A::B`; propagate that whole path (not just the
+        # last segment) and chain nested *blocks* (`namespace A { namespace B
+        # {...} }`) with `::` — so both nested-namespace forms key by `A::B`,
+        # identically to the out-of-line `void A::B::bar()` form that
+        # `_cpp_qualifier_scope` keys by the text before the last `::`. Taking
+        # only the last segment (the v0.9.0 behavior) keyed the dotted form by
+        # `B` and the block form by `A.B`, neither matching the out-of-line
+        # `A::B`, so a scoped claim on the nested form false-failed a truthful
+        # edit.
         name_node = node.child_by_field_name("name")
         if name_node is not None:
-            ns_name = _node_text(name_node, source).rsplit("::", 1)[-1].strip()
+            ns_name = _node_text(name_node, source).strip()
             if ns_name:
-                next_scope = f"{scope}.{ns_name}" if scope else ns_name
+                next_scope = f"{scope}::{ns_name}" if scope else ns_name
     elif language in {"typescript", "tsx"} and node.type in {
         "internal_module",
         "module",
@@ -296,13 +320,20 @@ def _walk(node, language: str, source: bytes, scope: str, out: list[Symbol]) -> 
         # scope='' — the same over-flag class the C++ namespace branch above
         # closes. The MCP docstring tells agents `scope` is the "containing
         # class/module name", so an agent emits `signature_change bar scope=Foo`
-        # and that truthful scoped claim false-fails on the namespace form. Read
-        # the `identifier` name child and propagate it as next_scope. Ambient
-        # `declare module "x" { ... }` (a `string` name, not an `identifier`) is
-        # skipped — it has no nominal scope an agent would claim against, and
-        # emitting a string-named scope would never match a real claim.
+        # and that truthful scoped claim false-fails on the namespace form.
+        # Read the name child and propagate it as next_scope. A dotted
+        # `namespace A.B` surfaces a `nested_identifier` name (text `A.B`), not
+        # an `identifier` — accept both and propagate the full dotted path so
+        # `namespace A.B` and nested blocks `namespace A { namespace B {} }`
+        # both key by `A.B`. Ambient `declare module "x" { ... }` (a `string`
+        # name) is skipped — it has no nominal scope an agent would claim
+        # against, and emitting a string-named scope would never match a real
+        # claim.
         name_node = node.child_by_field_name("name")
-        if name_node is not None and name_node.type == "identifier":
+        if name_node is not None and name_node.type in {
+            "identifier",
+            "nested_identifier",
+        }:
             ns_name = _node_text(name_node, source)
             if ns_name:
                 next_scope = f"{scope}.{ns_name}" if scope else ns_name

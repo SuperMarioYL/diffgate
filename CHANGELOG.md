@@ -6,6 +6,46 @@ All notable changes to DiffGate are documented here. Format follows
 
 ## [Unreleased]
 
+## [0.10.0]
+
+Three scope-propagation correctness fixes that close the over-flag class the
+v0.9.0 namespace fix left incomplete for *nested* namespaces and Rust `mod`,
+plus a truthful-reason fix for a scoped-delete sub-case.
+
+### Fixed
+- **Nested C++/TS namespaces now propagate their full scope path.** The v0.9.0
+  namespace-scope fix only handled a single-segment name. A nested C++
+  `namespace A::B { void bar() {} }` keyed `bar` by `scope="B"` (it kept only
+  the last `::` segment) and nested blocks `namespace A { namespace B {} }`
+  keyed by `scope="A.B"` (it chained with `.`), while the out-of-line
+  `void A::B::bar() {}` keyed by `scope="A::B"` — so the three forms of the
+  identical symbol diverged and a scoped claim on the (ubiquitous) nested form
+  false-failed a *truthful* edit. `_walk` now propagates the full namespace
+  path and chains nested C++ blocks with `::` so both block forms key by
+  `A::B`, identically to the out-of-line qualifier. TS/TSX had a second shape:
+  `namespace A.B { ... }` was skipped *entirely* (its name is a
+  `nested_identifier`, not an `identifier`); the walk now accepts it and
+  propagates the full dotted path so `namespace A.B` and nested blocks both
+  key by `A.B`.
+- **Rust `mod` blocks now propagate their name as scope.** `_walk` propagated
+  scope for Rust `impl_item`, C++/TS namespaces, and Go receivers, but had no
+  branch for Rust `mod_item`. A free `fn bar()` inside `mod foo { ... }` was
+  emitted with `scope=''`, so a contract-following agent emitting
+  `signature_change bar scope=foo` false-failed a truthful edit. The walk now
+  reads the `mod`'s name and propagates it as `next_scope`, mirroring the
+  `impl_item` branch — Rust `mod` is the language's primary namespace construct.
+- **Scoped delete no longer lies "not present" when the symbol is alive
+  elsewhere.** A scoped `delete foo scope=MyClass` where `foo` was NOT deleted
+  and still alive in the after-blob at a *different* scope fell through every
+  scope-mismatch branch in `_check_delete` to the false "was not present in
+  either blob (no-op)" message. The verdict still FAILed correctly, but the
+  reason lied about *why*. `_check_delete` now mirrors the scope-mismatch
+  branch in `_check_add` / `_check_rename`: when the claim names a scope and
+  the symbol is still present only at a different scope, the reason becomes
+  "'foo' is still present, but not in scope '<claimed>'". Ordered after the
+  "deleted from wrong scope" branch so a symbol that WAS deleted (elsewhere)
+  keeps its "was deleted, but not in scope" reason.
+
 ## [0.7.0]
 
 Two correctness fixes that make the gate's failure reasons truthful and its exit

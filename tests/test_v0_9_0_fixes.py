@@ -273,18 +273,22 @@ def test_cpp_top_level_data_declaration_not_emitted() -> None:
 # --------------------------------------------------------------------------- #
 # fix-version-string-drift-07-vs-08 (src/diffgate/__init__.py + pyproject.toml)
 # --------------------------------------------------------------------------- #
-def test_package_version_string_is_0_9_0() -> None:
-    """The in-package version must read 0.9.0 (was stuck at 0.7.0 while GitHub
-    was already at v0.8.0). Red->green: pre-fix __version__ == '0.7.0'.
+def test_package_version_string_matches_release() -> None:
+    """The in-package version must read the current release (0.10.0). The
+    version-string-drift guard landed in v0.9.0 — the package string had been
+    stuck at 0.7.0 while the GitHub lineage had already advanced to v0.8.0.
+    This guard now pins the current shipped version so the drift can't recur.
+    Red->green on the v0.9.0 fix: pre-fix __version__ == '0.7.0'.
     """
     import diffgate
 
-    assert diffgate.__version__ == "0.9.0", diffgate.__version__
+    assert diffgate.__version__ == "0.10.0", diffgate.__version__
 
 
-def test_pyproject_version_is_0_9_0() -> None:
-    """The pyproject.toml [project] version must read 0.9.0 so `pip install`
-    reports the shipped string. Red->green: pre-fix version == '0.7.0'.
+def test_pyproject_version_matches_release() -> None:
+    """The pyproject.toml [project] version must read the current release
+    (0.10.0) so `pip install` reports the shipped string. Red->green on the
+    v0.9.0 fix: pre-fix version == '0.7.0'.
     """
     data = tomllib.loads((_REPO_ROOT / "pyproject.toml").read_text())
-    assert data["project"]["version"] == "0.9.0", data["project"]["version"]
+    assert data["project"]["version"] == "0.10.0", data["project"]["version"]

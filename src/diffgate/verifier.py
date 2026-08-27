@@ -538,6 +538,19 @@ def _check_delete(
             f"claimed delete: '{action.symbol}' was deleted, but not in scope "
             f"'{_scope_label(action.scope)}'",
         )
+    # A scoped delete where the symbol was NOT deleted and is still alive in
+    # the after-blob at a DIFFERENT scope than the claim used to fall through
+    # to the false "was not present in either blob (no-op)" message — the
+    # symbol IS present (just not where the claim pinned). Mirror the
+    # scope-mismatch branches in _check_add / _check_rename. Ordered after the
+    # "deleted from wrong scope" branch above so a symbol that WAS deleted
+    # (elsewhere) keeps its "was deleted, but not in scope" reason.
+    if action.scope and any(s.name == action.symbol for s in after):
+        return Mismatch(
+            action,
+            f"claimed delete: '{action.symbol}' is still present, but not in "
+            f"scope '{_scope_label(action.scope)}'",
+        )
     return Mismatch(
         action,
         f"claimed delete: '{action.symbol}' was not present in either blob "
