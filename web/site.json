@@ -86,8 +86,8 @@
     "en": "Nine languages, one gate"
    },
    "body": {
-   "zh": "Python / TypeScript / TSX / JavaScript / Go / Rust / Java / C++ / Ruby 全覆盖 —— 类方法、同名重载、带外定义、命名空间与模块都按作用域精确对齐；作用域对不上也如实说明，不漏过、不误判。",
-   "en": "Python / TypeScript / TSX / JavaScript / Go / Rust / Java / C++ / Ruby — class methods, same-name overloads, out-of-line definitions, namespaces and modules all align by scope; a scope mismatch is named honestly, so nothing slips through and nothing gets a false alarm."
+    "zh": "Python / TypeScript / TSX / JavaScript / Go / Rust / Java / C++ / Ruby 全覆盖 —— 类方法、同名重载、带外定义、命名空间与模块都按作用域精确对齐；作用域对不上也如实说明，不漏过、不误判。",
+    "en": "Python / TypeScript / TSX / JavaScript / Go / Rust / Java / C++ / Ruby — class methods, same-name overloads, out-of-line definitions, namespaces and modules all align by scope; a scope mismatch is named honestly, so nothing slips through and nothing gets a false alarm."
    },
    "chips": [
     "› py · ts · go · rs · java · cpp · ruby",
@@ -124,6 +124,6 @@
    "en": "Turn silent lies into loud errors."
   }
  },
- "content_version": "v0.10.0",
- "generated_at": "2026-08-27T14:28:37Z"
+ "content_version": "v0.11.0",
+ "generated_at": "2026-09-05T00:00:00Z"
 }

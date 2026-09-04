@@ -84,6 +84,23 @@ LANGUAGE_RULES: dict[str, dict[str, tuple[str, None]]] = {
         "function_declaration": ("function", None),
         "method_declaration": ("method", None),
         "type_spec": ("class", None),
+        # `type Iface interface { Method(x int) int }` — a Go interface method
+        # is a `method_elem` (a signature with no body, the canonical interface
+        # declaration). Without this an interface yields only the `Iface` type
+        # symbol and zero method symbols, so a truthful `add Method scope=Iface`
+        # / `signature_change Method scope=Iface` false-fails (verified
+        # end-to-end). Java abstract methods, TS `method_signature`, and C++
+        # header method declarations are all parsed, so Go interfaces were the
+        # one supported language whose declaration/signature split was
+        # uncovered — the same over-flag class closed for C++ headers. The
+        # interface's scope flows to each `method_elem` through the existing
+        # `_walk` path (the `type_spec` `Iface` is a class whose `next_scope`
+        # propagates through the `interface_type` child), and
+        # `_find_name`/`_signature_text`/`_body_hash` already read the
+        # `name`/`parameters` fields tree-sitter exposes on `method_elem`
+        # (`body_hash` stays `""` since a signature has no body), so a one-line
+        # rule addition is the whole fix.
+        "method_elem": ("method", None),
     },
     "rust": {
         "function_item": ("function", None),
@@ -236,6 +253,23 @@ def _walk(node, language: str, source: bytes, scope: str, out: list[Symbol]) -> 
                 recv = _go_receiver_scope(node, source)
                 if recv:
                     sym_scope = recv
+            # Ruby top-level class methods (``def Foo.bar``) sit at file level so
+            # the walk-scope is empty, yet the receiver object (``Foo``) is the
+            # method's real owning scope — the same over-flag class the Go
+            # receiver / C++ out-of-line branches above close, but for Ruby.
+            # The class-block form ``def self.bar`` inside ``class Foo`` already
+            # keys by scope='Foo' via the class walk-scope (and promotes to
+            # method via ``effective_kind``), so only act when the ``object``
+            # is a concrete ``constant`` (NOT ``self``); then the top-level
+            # qualified form keys identically to the class-block form.
+            elif language == "ruby" and node.type == "singleton_method":
+                obj_node = node.child_by_field_name("object")
+                if obj_node is not None and obj_node.type == "constant":
+                    recv = _node_text(obj_node, source).strip()
+                    if recv:
+                        sym_scope = recv
+                        if effective_kind == "function":
+                            effective_kind = "method"
             sig = _signature_text(value_node or node, source)
             body_h = _body_hash(value_node or node, source)
             out.append(

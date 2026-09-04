@@ -6,6 +6,49 @@ All notable changes to DiffGate are documented here. Format follows
 
 ## [Unreleased]
 
+## [0.11.0]
+
+Two more language-coverage over-flag fixes (Go interface methods, Ruby
+qualified class methods) and two error-handling fixes that close the gap the
+v0.7.0 traceback fix left for malformed claim-file rows and non-object bench
+rows.
+
+### Fixed
+- **Go interface method signatures are now parsed.** `LANGUAGE_RULES["go"]`
+  omitted the `method_elem` node that holds a Go interface method signature
+  (`type Iface interface { Method(x int) int }`), so an interface yielded only
+  the `Iface` type symbol and zero method symbols — and a truthful
+  `add Method scope=Iface` / `signature_change Method scope=Iface` false-failed.
+  Java abstract methods, TS `method_signature`, and C++ header method
+  declarations are all parsed, so Go interfaces were the one supported language
+  whose declaration/signature split was uncovered. A one-line rule addition
+  now parses them; the interface's scope flows to each method through the
+  existing `_walk` path (no new logic).
+- **Ruby `def Foo.bar` now keys by the receiver as scope.** `_walk` had no
+  branch that reads a Ruby `singleton_method`'s `object` field, so a top-level
+  class method `def Foo.bar` was emitted with `scope=''` while the class-block
+  `def self.bar` form correctly keyed by `scope='Foo'`. A contract-following
+  agent emitting `signature_change bar scope=Foo` therefore false-failed a
+  truthful edit — the same over-flag class closed nine times before. `_walk`
+  now reads the `object` when it is a concrete `constant` (NOT `self`) and
+  promotes to method, so the two forms key identically without touching the
+  class-block form.
+- **A malformed single-file `--claim-file` no longer leaks a traceback.**
+  `verify_cmd`'s single-file path called `_actions_from_payload` outside any
+  try/except, and `ClaimedAction.from_dict` raises `KeyError` (not
+  `ValueError`) when an action dict omits `kind` / `symbol`, so a malformed
+  claim file leaked an unhandled traceback at exit 1 — indistinguishable from
+  a failed verification to an agent gating on exit code. This is the exact
+  class the v0.7.0 traceback fix targeted, left incomplete for the single-file
+  path (the multi-file path already wrapped it). The call is now wrapped so a
+  bad claim file exits 2 cleanly.
+- **`run_bench` no longer crashes on a non-object JSONL row.** `run_bench` read
+  `record.get(...)` before its try/except, so a JSONL row that is valid JSON
+  but not an object (a bare list / number / string) raised `AttributeError`
+  outside the `except Exception` and crashed the bench, breaking the
+  "robust to bad rows" contract. The label read now lives inside the try with
+  an `isinstance` guard, so a non-object row is scored as a parse error.
+
 ## [0.10.0]
 
 Three scope-propagation correctness fixes that close the over-flag class the

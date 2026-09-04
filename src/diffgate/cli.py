@@ -228,7 +228,19 @@ def verify_cmd(
             _run_multi_file(payload, claim_file, language, json_output)
             return
 
-        actions = _actions_from_payload(payload)
+        # A malformed single-file claim payload (an action dict missing its
+        # ``kind``/``symbol`` key) used to raise ``KeyError`` here — unwrapped
+        # — and leak a traceback at exit 1, indistinguishable from a failed
+        # verification to an agent gating on exit code. That's the exact class
+        # the v0.7.0 traceback fix targeted; it wrapped ``_load_claim_file``
+        # and ``_parse_claims`` but missed this call (the multi-file
+        # ``_run_multi_file`` path already wraps it). Catch it here so a bad
+        # claim file surfaces as a clean exit-2 usage error instead.
+        try:
+            actions = _actions_from_payload(payload)
+        except (KeyError, ValueError) as exc:
+            _console_stderr.print(f"[bold red]claim-file error:[/bold red] {exc}")
+            raise typer.Exit(code=2) from exc
         payload_lang = payload.get("language") if isinstance(payload, dict) else None
     else:
         if not claim:

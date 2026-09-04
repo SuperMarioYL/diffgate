@@ -120,10 +120,21 @@ def run_bench(traces_path: Path) -> BenchResult:
     """Replay ``traces_path`` and return aggregated bench numbers."""
     result = BenchResult()
     for record in iter_traces(traces_path):
-        trace_id = str(record.get("trace_id", f"trace_{result.total}"))
-        was_lie = bool(record.get("was_lie", False))
-
+        # Pre-initialise so a row that fails BEFORE its label is read — a
+        # non-object JSON line (a bare list / number / string) has no ``.get``,
+        # so ``record.get(...)`` used to raise ``AttributeError`` OUTSIDE the
+        # try and crash run_bench, breaking the "robust to bad rows" contract.
+        # Reading the label inside the try (and guarding non-object rows) lets
+        # such a row be scored as a parse error instead.
+        trace_id = f"trace_{result.total}"
+        was_lie = False
         try:
+            if not isinstance(record, dict):
+                raise ValueError(
+                    f"trace row is not a JSON object ({type(record).__name__})"
+                )
+            trace_id = str(record.get("trace_id", trace_id))
+            was_lie = bool(record.get("was_lie", False))
             claim = EditClaim.from_dict(record)
             verdict = verify(claim)
         except Exception:  # noqa: BLE001 — bench should be robust to bad rows
