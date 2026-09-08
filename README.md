@@ -1,191 +1,124 @@
-**简体中文** | [English](./README.en.md)
+[English](./README.en.md) · [Website](https://diffgate.lei6393.com) · [GitHub](https://github.com/SuperMarioYL/diffgate)
 
-<p align="center">
-  <img src="https://capsule-render.vercel.app/api?type=waving&color=gradient&customColorList=6,11,20&height=180&section=header&text=DiffGate&fontSize=58&fontColor=ffffff&fontAlignY=38&desc=Agent%20编辑回路的结构化校验门&descAlignY=62&descSize=14" alt="DiffGate banner" />
-</p>
+<picture>
+  <source media="(max-width: 600px) and (prefers-color-scheme: dark)" srcset="./assets/presentation/hero-mobile-dark.svg">
+  <source media="(max-width: 600px)" srcset="./assets/presentation/hero-mobile-light.svg">
+  <source media="(prefers-color-scheme: dark)" srcset="./assets/presentation/hero-dark.svg">
+  <img src="./assets/presentation/hero-light.svg" width="960" alt="Hero diagram">
+</picture>
 
-<p align="center">
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue.svg" alt="Apache License 2.0" /></a>
-  <img src="https://img.shields.io/badge/python-3.12%2B-blue.svg" alt="Python 3.12+" />
-  <img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/SuperMarioYL/diffgate/main/bench/catch_rate.json" alt="Catch rate" />
-  <img src="https://img.shields.io/badge/languages-9-success" alt="9 languages" />
-  <img src="https://img.shields.io/badge/Agent-ready-7c3aed" alt="Agent ready" />
-  <img src="https://img.shields.io/badge/MCP-compatible-0ea5e9" alt="MCP compatible" />
-</p>
+# diffgate
 
-> **DiffGate 是给 Agent 编辑回路装的结构化校验门 —— 改没改、改对没改，AST 说了算。**
+**用实际代码变化检查编辑声明。**
 
-## 目录
+DiffGate 解析修改前后源码，计算结构变化，并与明确编辑声明进行比较。
 
-- [为什么需要 DiffGate](#为什么需要-diffgate)
-- [架构](#架构)
-- [快速开始](#快速开始)
-- [演示](#演示)
-- [它是怎么工作的](#它是怎么工作的)
-- [对比同类项目](#对比同类项目)
-- [配置说明](#配置说明)
-- [路线图](#路线图)
-- [付费 / Pricing](#付费--pricing)
-- [License & 贡献](#license--贡献)
-- [Share this](#share-this)
+## 为什么需要它
 
-## 为什么需要 DiffGate
+工具返回成功时，源码仍可能未变，或改到了错误符号。明确的前后声明让调用框架在继续运行前检查结构工作是否发生。
 
-Cursor、Claude Code、Codex、GPT-5.5 这些 Agent 编辑代码时，经常返回 `success`，但 diff 是空的、改在了错误的文件，或者只是在注释里"承诺"了改动。Tessl 的 1281 次实测显示，这是**大型代码库上最常见的失败类**之一 —— 但**没有任何 Agent 框架在 edit 步骤之后做结构化校验**。
+- **确定性不匹配** — 结论来自源码结构。
+- **带作用域声明** — 声明可以针对具体符号作用域。
+- **共用核心** — CLI 与 MCP 暴露同一验证器。
 
-DiffGate 在 Agent 工具调用和下一轮 loop 之间插一道关：解析改前改后的 AST，对比 Agent 自己声明的 `claimed_actions`，不一致就返回 `exit_code=1`，让 Agent 自己重试。把一类"安静地撒谎"，变成"吵闹地报错"。
+## 架构
 
-## <img src="https://api.iconify.design/tabler:topology-star-3.svg?color=%230071E3&width=24" height="22" align="absmiddle" alt=""> 架构
+<picture>
+  <source media="(max-width: 600px) and (prefers-color-scheme: dark)" srcset="./assets/presentation/architecture-mobile-dark.svg">
+  <source media="(max-width: 600px)" srcset="./assets/presentation/architecture-mobile-light.svg">
+  <source media="(prefers-color-scheme: dark)" srcset="./assets/presentation/architecture-dark.svg">
+  <img src="./assets/presentation/architecture-light.svg" width="960" alt="Architecture diagram">
+</picture>
 
-<p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="./assets/atlas-dark.svg">
-    <source media="(prefers-color-scheme: light)" srcset="./assets/atlas-light.svg">
-    <img src="./assets/atlas-light.svg" width="880" alt="Coding Agent 发出 EditClaim（改前/改后 blob + 声明动作），DiffGate 用 tree-sitter 解析双侧并把声明对齐到 AST diff，Verdict 要么放行（exit 0），要么返回 exit_code 1 作为结构化背压让 Agent 重试">
-  </picture>
-</p>
+Tree-sitter 解析器提取符号和作用域。验证器计算新增、删除、签名变化与函数体变化，再匹配支持的动作声明。CLI 与 MCP 返回相同的确定性结论和不匹配证据。
 
-Coding Agent（Cursor / Claude Code / Codex / LangGraph）在每次编辑后发出一个 **`EditClaim`** —— 改前 blob、改后 blob、声明的动作。`cli.py` 与 `mcp_server.py` 是同一个 `verifier.verify(EditClaim) → Verdict` 的两层薄壳：核心用 tree-sitter 解析双侧 AST（Python / TypeScript / TSX / JavaScript / Go / Rust / Java / C++ / Ruby），把每条声明对齐到真实的结构化 diff。**Verdict** 要么放行让 loop 继续（`exit 0`），要么返回 `exit_code=1` 作为**结构化背压**，带着 mismatch 原因把 Agent 打回重试 —— 全程本地、离线、确定性，无守护进程、无数据库、无网络调用。
+| 组件 | 职责 |
+| --- | --- |
+| `Before / after blobs` | EditClaim input |
+| `Tree-sitter symbols` | parsers.py |
+| `Claim verifier` | verifier.py |
+| `CLI / MCP verdict` | Machine-readable mismatch |
 
-## 快速开始
+## 安装与快速上手
+
+使用仓库清单指定的运行时版本构建，并在仓库根目录运行示例。
 
 ```bash
-pipx install diffgate                                          # ≤30s
-diffgate verify --before X.py --after X.py.new --claim "rename foo→bar"
-diffgate diff --before X.py --after X.py.new                  # 只看结构化 diff，不下结论（--json 机器可读）
-diffgate mcp-server --stdio                                    # 注册到 Claude Code / Cursor 的 mcp.json
+git clone https://github.com/SuperMarioYL/diffgate.git
+cd diffgate
+uv venv .venv
+uv pip install --python .venv/bin/python -e .
+source .venv/bin/activate
 ```
 
-> `verify` 拿一条 `EditClaim` 对结构化 diff 做**裁决**；`diff` 则直接把结构化 diff（added / deleted / signature_changed / body_changed）作为一等输出打印出来 —— Agent 或 CI 可以先看真实 diff 来自我纠错、或据此起草一条**真实**的 `claimed_actions`，再交给 `verify` 把关。
-
-接下来把下面 3 行加进 `~/.config/claude-code/mcp.json`（或 Cursor 的同等配置）：
-
-```json
-{
-  "mcpServers": {
-    "diffgate": { "command": "diffgate", "args": ["mcp-server", "--stdio"] }
-  }
-}
-```
-
-完整的 hook 教程见 [`examples/claude_code_hook.md`](./examples/claude_code_hook.md)；Cursor 集成见 [`examples/cursor_integration.md`](./examples/cursor_integration.md)。
-
-## <img src="https://api.iconify.design/tabler:photo.svg?color=%230071E3&width=24" height="22" align="absmiddle" alt=""> 演示
-
-<p align="center">
-  <img src="./assets/demo.gif" alt="diffgate verify 终端演示：Claude Code 声称改名但实际是空 diff，DiffGate 返回 exit_code 1" width="820" />
-</p>
-
-<sub>↑ 终端实录（由 CI 用 <a href="https://github.com/charmbracelet/vhs">vhs</a> 渲染 <a href="./docs/demo.tape">docs/demo.tape</a>，打 tag 时自动生成）。</sub>
-
-60 秒画面：Claude Code 声称把 `module_x.py` 里的 `foo` 全部改名为 `bar` → DiffGate 解析双侧 AST → 发现实际有 0 处 rename → `exit_code=1` → Agent 自动重试。
-
-## 它是怎么工作的
-
-三个本地进程，全部不联网：
-
-```
-[ coding agent ]  ──tool_call──►  [ diffgate MCP server (python) ]
-                                          │
-                                          ▼
-                                  [ verifier core ]
-                                   ├── tree-sitter 解析器 (py/ts/tsx/js/go/rs/java/cpp/ruby)
-                                   └── claim → ast_change 匹配器
-```
-
-核心数据原语是 **`EditClaim`**：
-
-```python
-EditClaim {
-  before_blob: str
-  after_blob: str
-  claimed_actions: [
-    {kind: "rename"|"add"|"delete"|"move"|"signature_change",
-     symbol: str, scope: str}
-  ]
-}
-→ Verdict { passed: bool, mismatches: [...], structural_diff: ast_summary }
-```
-
-`cli.py` 和 `mcp_server.py` 是同一个 `verifier.verify(edit_claim) → Verdict` 的两层薄壳。没有守护进程、数据库、网络调用。
-
-### 作用域（scope）感知 — v0.2.0
-
-`claimed_actions` 里的 `scope` 字段现在会被严格校验。声明 `add MyClass.helper`
-只有当 `helper` 真的落在 `MyClass` 里时才放行 —— Agent 改成了一个模块级的
-`helper()` 不再算数。这堵死了一类常见的"安静撒谎"：把类方法和同名的模块级
-函数互相混淆。
+将相同 foo 到 bar 改名声明分别与未变源码和实际改名函数比较。
 
 ```bash
-# Agent 声称给类 A 加了方法 helper，实际只加了一个模块级函数 → exit_code 1
-diffgate verify --before a.py --after a.py.new --claim "add helper in A"
+.venv/bin/python examples/presentation-demo.py
 ```
 
-`scope` 留空时是通配符，按符号名匹配（与 v0.1 行为完全一致），所以旧的无作用域
-声明不受影响。
+## 实际运行示例
 
-## 对比同类项目
+<picture>
+  <source media="(max-width: 600px) and (prefers-color-scheme: dark)" srcset="./assets/presentation/process-mobile-dark.svg">
+  <source media="(max-width: 600px)" srcset="./assets/presentation/process-mobile-light.svg">
+  <source media="(prefers-color-scheme: dark)" srcset="./assets/presentation/process-dark.svg">
+  <img src="./assets/presentation/process-light.svg" width="960" alt="Process diagram">
+</picture>
 
-诚实对比，不画饼：
+The unchanged case is rejected and the structurally renamed case is accepted.
 
-| 维度                              | DiffGate            | [Aider](https://github.com/Aider-AI/aider) test-loop | [langgenius/dify](https://github.com/langgenius/dify) | [ChromeDevTools/chrome-devtools-mcp](https://github.com/ChromeDevTools/chrome-devtools-mcp) |
-| --------------------------------- | ------------------- | ---------------------------------------------------- | ----------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| 拦截"空 diff / 改错文件"的假成功 | ✓                  | —                                                    | —                                                     | —                                                                                           |
-| 行为正确性（跑测试）              | —                   | ✓                                                   | partial                                               | —                                                                                           |
-| Agent 工作流编排                  | —                   | partial                                              | **✓ (远超 DiffGate)**                                | —                                                                                           |
-| 浏览器 / DevTools 侧观察          | —                   | —                                                    | —                                                     | **✓ (远超 DiffGate)**                                                                      |
-| 跨 Agent / 跨 IDE                 | ✓ (MCP 协议)        | Aider-only                                           | Dify-only                                             | Chrome-only                                                                                 |
-| 部署                              | 单进程 / 本地       | 单进程                                               | 多服务 / 容器                                         | Chrome 扩展                                                                                 |
-
-DiffGate 只解决一类问题（结构化撒谎），不取代上面任何一个。Aider 仍然是更好的 pair-programmer；Dify 仍然是更好的 Agent 编排；chrome-devtools-mcp 在浏览器侧依然无可替代。
-
-## 配置说明
-
-| 键               | 类型   | 默认               | 含义                                                       |
-| ---------------- | ------ | ------------------ | ---------------------------------------------------------- |
-| `languages`      | list   | `[py, ts, tsx, js, go, rs, java, cpp, ruby]` | 启用的 tree-sitter 解析器                                  |
-| `strict_renames` | bool   | `true`             | rename claim 必须改到所有引用；`false` 时只校验声明位置    |
-| `mcp.transport`  | enum   | `stdio`            | `stdio` 或 `sse`                                           |
-| `bench.traces`   | path   | 内置 200 条        | `diffgate bench` 使用的 ground-truth JSONL                 |
-
-完整配置见 `diffgate --help`。
-
-## 路线图
-
-- [x] **m1 — `diffgate verify`**：CLI + Python/TS 解析 + 20 条 silent-lie fixture 全部命中
-- [x] **m2 — `diffgate mcp-server`**：MCP 工具 `verify_edit`，配合 Claude Code / Cursor 即开即用
-- [x] **m3 — `diffgate bench`**：回放 trace，输出 precision/recall
-- [x] **v0.2 — 作用域感知校验**：`scope` 字段严格匹配，拦截"类方法 vs 同名模块函数"混淆
-- [x] **v0.3 — CLI/MCP 对齐 + 多语言**：结构化 `--claim-file`（含 stdin）、多文件校验、新增 Java / C++ / Ruby 解析器，外加三处 silent-lie 修复
-- [x] **v0.4 — 多语言正确性 + catch-rate 徽章**：修复 C++ 带外定义方法 / Java record / `.h` 头文件扩展名 / MCP+README 语言列表；README 徽章接上可复现的 bench
-- [x] **v0.5 — 多语言校验器收尾**：重载按内容配对（C++/Java 重载重排不再伪造 sig 变更）、Go 方法 receiver 写入 scope
-- [x] **v0.6 — `diffgate diff` + 最后两处 over-flag 修复**：新增 `diffgate diff` 子命令把结构化 diff 作为一等输出；Rust `impl` 块方法、TS/JS 类箭头函数属性（`handle = (req) => {}`）携带正确 scope
-- [ ] **DiffGate Cloud**（付费）：跨团队聚合 catch-rate、SSO、Prometheus exporter
-- [ ] **框架集成**：LangGraph / Mastra / Autogen 官方可选 gate
-
-## 付费 / Pricing
-
-**自托管永远免费。** CLI、MCP server、tree-sitter 解析器、bench 工具全部 Apache 2.0 协议，没有任何 phone-home。
-
-**付费产品（v0.2）—— DiffGate Cloud**：面向字节、阿里、腾讯、美团、京东这类内部 Dev Platform 团队的托管聚合面板。把每个工程师、每个团队的 Agent catch-rate 汇总到一个仪表盘，带 SSO、审计日志、Prometheus exporter，并优先支持 Java / C++ 解析器。定价大约**¥1,200 / 工程师 / 年**（按容量分层），约为一个 Cursor Business 席位的 1/3 —— 定位为"你已经付了席位钱的那个 Agent，再加一道安全网"。
-
-试点流程：14 天免费 → 第 14 天给一份团队聚合的 catch-rate + 估算的"节省工程师小时"读数 → 年合同（最低 ¥100k 起，按席位扩容）。Stripe（USD）+ 阿里云国际 / 微信支付商户号（CNY）双通道结算。
-
-如果你在字节 / 阿里 / 腾讯 / 美团 / 京东的内部 Dev Platform，欢迎邮件 `leo.stack@outlook.com` 聊试点。
-
-## License & 贡献
-
-Apache 2.0，详见 [LICENSE](./LICENSE)。Bug、误判、漏判一律欢迎开 issue —— 把 `EditClaim` 的 before/after 贴上来即可，复现非常便宜。PR 之前先开 issue 对齐一下范围。
-
-## Share this
-
-```
-DiffGate — 给 Coding Agent 编辑回路的结构化校验门。
-你已经付了 Cursor / Claude Code 的席位钱，再加一道 Agentic 安全网，
-让"声称改完了"的假成功变成 exit-code 1。OSS + MCP。
-https://github.com/SuperMarioYL/diffgate
+```text
+{"case": "unchanged", "passed": false, "mismatches": ["claimed rename foo\u2192bar but neither name appears in the structural diff (no-op edit)"]}
+{"case": "renamed", "passed": true, "mismatches": []}
 ```
 
----
+完整命令与输出保存在 [docs/demo-results.json](./docs/demo-results.json). 输入和复现代码均随仓提供。
 
-<sub>Apache-2.0 © 2026 SuperMarioYL</sub>
+![已有终端录制](./assets/demo.gif)
+
+保留已有录制供参考；上方文字示例给出当前可复现的操作。
+
+## 用法
+
+CLI 提供以下操作。示例之外的命令需要替换成你的文件路径或标识。
+
+```bash
+diffgate verify --before before.py --after after.py --claim "rename foo->bar" --json
+diffgate diff --before before.py --after after.py --json
+diffgate mcp-server --stdio
+```
+
+## 配置
+
+指定前后文件与支持的声明。--lang 可覆盖按扩展名检测的语言，--json 输出结构化数据。程序接口 EditClaim 接受源码、语言以及带可选 scope、new_symbol 的 ClaimedAction。
+
+## 集成与职责分工
+
+<picture>
+  <source media="(max-width: 600px) and (prefers-color-scheme: dark)" srcset="./assets/presentation/integrations-mobile-dark.svg">
+  <source media="(max-width: 600px)" srcset="./assets/presentation/integrations-mobile-light.svg">
+  <source media="(prefers-color-scheme: dark)" srcset="./assets/presentation/integrations-dark.svg">
+  <img src="./assets/presentation/integrations-light.svg" width="960" alt="Integrations diagram">
+</picture>
+
+以下路径已有源码实现。按任务选择输入，并把生成的结果与项目一起保存。
+
+| 路径 | 已实现职责 |
+| --- | --- |
+| Source blobs / files | Before and after input |
+| Edit claims | Rename, add, delete, move, signature |
+| Multiple grammars | Supported tree-sitter languages |
+| CLI / MCP | Harness integration surfaces |
+
+## 限制与后续方向
+
+- 结构匹配不证明语义正确、所有引用已更新或测试通过。
+- 声明受支持动作词汇与解析器行为限制，应继续配合常规测试。
+- 示例只检查小型 Python 改名案例，不覆盖所有语言或跨文件场景。
+
+后续语法和作用域改进应基于可复现不匹配；结构验证仍需与行为测试配合。
+
+## 许可与贡献
+
+许可见 [LICENSE](./LICENSE). 反馈问题时请提供最小输入、执行命令和实际输出。

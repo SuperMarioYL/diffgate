@@ -1,0 +1,13 @@
+{
+  "schema": 1,
+  "source_revision": "05c348590768a48f636a8683fc95fede7eaf59e2",
+  "scope": "Verify an explicit Python rename claim against unchanged and actually renamed source blobs using the production tree-sitter verifier.",
+  "steps": [
+    {
+      "label": "Recorded run",
+      "body": "Verify an explicit Python rename claim against unchanged and actually renamed source blobs using the production tree-sitter verifier.",
+      "command": ".venv/bin/python examples/presentation-demo.py",
+      "output": "{\"case\": \"unchanged\", \"passed\": false, \"mismatches\": [\"claimed rename foo\\u2192bar but neither name appears in the structural diff (no-op edit)\"]}\n{\"case\": \"renamed\", \"passed\": true, \"mismatches\": []}"
+    }
+  ]
+}

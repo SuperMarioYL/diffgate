@@ -1,129 +1,215 @@
 {
- "schema": 1,
- "name": "diffgate",
- "github": "https://github.com/SuperMarioYL/diffgate",
- "host": "diffgate.lei6393.com",
- "lang": {
-  "primary": "zh",
-  "toggle": true
- },
- "accent": [
-  "#2dd4bf"
- ],
- "hero": {
-  "eyebrow": {
-   "zh": "本地 · 零配置 · 开源",
-   "en": "Local · Zero-config · Open-source"
+  "schema": 3,
+  "name": "diffgate",
+  "github": "https://github.com/SuperMarioYL/diffgate",
+  "host": "diffgate.lei6393.com",
+  "palette": "auto",
+  "lang": {
+    "primary": "en",
+    "toggle": true
   },
-  "headline": {
-   "zh": "Agent 说改完了？\nAST 对不上就打回重试",
-   "en": "Agent says \"done\"?\nSend it back when the AST disagrees"
+  "meta": {
+    "visual_style": "neon-particle",
+    "demo_source": "docs/demo-results.json"
   },
-  "sub": {
-   "zh": "改前改后两份代码逐一比对，改没改、改对没，对得上才放行 —— 全程本地、离线、一条命令安装。",
-   "en": "After every edit, the before/after code is compared structurally — the loop only continues when the change the agent claims actually happened. Local, offline, one command to install."
+  "hero": {
+    "headline": {
+      "en": "Check an edit claim against the code that changed.",
+      "zh": "用实际代码变化检查编辑声明。"
+    },
+    "sub": {
+      "en": "DiffGate parses before and after source blobs, computes structural changes and compares them with explicit edit claims.",
+      "zh": "DiffGate 解析修改前后源码，计算结构变化，并与明确编辑声明进行比较。"
+    },
+    "href": "#quickstart"
   },
-  "command": "diffgate verify --before X.py --after X.py.new --claim \"rename foo→bar\"",
-  "cta": {
-   "zh": "查看 GitHub",
-   "en": "View on GitHub"
+  "advantages": [
+    {
+      "title": {
+        "en": "Deterministic mismatch",
+        "zh": "确定性不匹配"
+      },
+      "body": {
+        "en": "The verdict comes from source structure.",
+        "zh": "结论来自源码结构。"
+      }
+    },
+    {
+      "title": {
+        "en": "Scope-aware claims",
+        "zh": "带作用域声明"
+      },
+      "body": {
+        "en": "Claims can target a specific symbol scope.",
+        "zh": "声明可以针对具体符号作用域。"
+      }
+    },
+    {
+      "title": {
+        "en": "Common core",
+        "zh": "共用核心"
+      },
+      "body": {
+        "en": "CLI and MCP expose the same verifier.",
+        "zh": "CLI 与 MCP 暴露同一验证器。"
+      }
+    }
+  ],
+  "demo": {
+    "title": {
+      "en": "Run it on a complete example",
+      "zh": "运行完整示例"
+    },
+    "note": {
+      "en": "Compare the same explicit foo-to-bar rename claim against unchanged Python source and a real renamed function.",
+      "zh": "将相同 foo 到 bar 改名声明分别与未变源码和实际改名函数比较。"
+    },
+    "source": "https://github.com/SuperMarioYL/diffgate/blob/main/docs/demo-results.json",
+    "steps": [
+      {
+        "label": "Recorded run",
+        "body": "Verify an explicit Python rename claim against unchanged and actually renamed source blobs using the production tree-sitter verifier.",
+        "command": ".venv/bin/python examples/presentation-demo.py",
+        "output": "{\"case\": \"unchanged\", \"passed\": false, \"mismatches\": [\"claimed rename foo\\u2192bar but neither name appears in the structural diff (no-op edit)\"]}\n{\"case\": \"renamed\", \"passed\": true, \"mismatches\": []}",
+        "image": "/assets/presentation/demo-0-light.svg",
+        "imageDark": "/assets/presentation/demo-0-dark.svg"
+      }
+    ]
   },
-  "ctaGithub": {
-   "zh": "源码 / Issues",
-   "en": "Source / Issues"
+  "quickstart": {
+    "title": {
+      "en": "Try it locally",
+      "zh": "本地上手"
+    },
+    "body": {
+      "en": "Compare the same explicit foo-to-bar rename claim against unchanged Python source and a real renamed function.",
+      "zh": "将相同 foo 到 bar 改名声明分别与未变源码和实际改名函数比较。"
+    },
+    "steps": [
+      {
+        "title": {
+          "en": "Install from source",
+          "zh": "从源码安装"
+        },
+        "code": "git clone https://github.com/SuperMarioYL/diffgate.git\ncd diffgate\nuv venv .venv\nuv pip install --python .venv/bin/python -e .\nsource .venv/bin/activate"
+      },
+      {
+        "title": {
+          "en": "Run the included example",
+          "zh": "运行随仓示例"
+        },
+        "code": ".venv/bin/python examples/presentation-demo.py"
+      }
+    ]
   },
-  "scroll": {
-   "zh": "往下看怎么工作",
-   "en": "See how it works"
+  "limitations": [
+    {
+      "en": "A structural match does not prove semantic correctness, complete reference updates or passing tests.",
+      "zh": "结构匹配不证明语义正确、所有引用已更新或测试通过。"
+    },
+    {
+      "en": "Claims cover the supported action vocabulary and parser behavior. Keep normal testing alongside this gate.",
+      "zh": "声明受支持动作词汇与解析器行为限制，应继续配合常规测试。"
+    },
+    {
+      "en": "The demo checks only a small Python rename case, not every supported language or cross-file scenario.",
+      "zh": "示例只检查小型 Python 改名案例，不覆盖所有语言或跨文件场景。"
+    }
+  ],
+  "scene": {
+    "kind": "neon-graph",
+    "fallback": "/assets/presentation/scene-dark.svg",
+    "fallbackLight": "/assets/presentation/scene-light.svg"
+  },
+  "story": {
+    "intro": {
+      "title": {
+        "en": "A concrete task",
+        "zh": "从实际任务出发"
+      },
+      "body": {
+        "en": "A successful tool response can still leave the source unchanged or modify the wrong symbol. An explicit before/after claim lets a harness check that structural work occurred before continuing.",
+        "zh": "工具返回成功时，源码仍可能未变，或改到了错误符号。明确的前后声明让调用框架在继续运行前检查结构工作是否发生。"
+      }
+    },
+    "sections": [
+      {
+        "title": {
+          "en": "Follow the operation",
+          "zh": "处理过程"
+        },
+        "body": {
+          "en": "Tree-sitter parsers extract symbols and scopes. The verifier computes added, deleted, signature-changed and body-changed symbols, then matches supported claimed actions. CLI and MCP return the same deterministic verdict and mismatch evidence.",
+          "zh": "Tree-sitter 解析器提取符号和作用域。验证器计算新增、删除、签名变化与函数体变化，再匹配支持的动作声明。CLI 与 MCP 返回相同的确定性结论和不匹配证据。"
+        },
+        "image": {
+          "light": "/assets/presentation/process-light.svg",
+          "dark": "/assets/presentation/process-dark.svg",
+          "alt": {
+            "en": "Follow the operation",
+            "zh": "处理过程"
+          }
+        }
+      },
+      {
+        "title": {
+          "en": "How DiffGate works",
+          "zh": "DiffGate 的工作方式"
+        },
+        "body": {
+          "en": "Tree-sitter parsers extract symbols and scopes. The verifier computes added, deleted, signature-changed and body-changed symbols, then matches supported claimed actions. CLI and MCP return the same deterministic verdict and mismatch evidence.",
+          "zh": "Tree-sitter 解析器提取符号和作用域。验证器计算新增、删除、签名变化与函数体变化，再匹配支持的动作声明。CLI 与 MCP 返回相同的确定性结论和不匹配证据。"
+        },
+        "image": {
+          "light": "/assets/presentation/architecture-light.svg",
+          "dark": "/assets/presentation/architecture-dark.svg",
+          "alt": {
+            "en": "How DiffGate works",
+            "zh": "DiffGate 的工作方式"
+          }
+        }
+      },
+      {
+        "title": {
+          "en": "Connect the pieces",
+          "zh": "输入与输出"
+        },
+        "body": {
+          "en": "The following routes are implemented in the source. Choose the input that matches your task and keep the resulting artifact with your project.",
+          "zh": "以下路径已有源码实现。按任务选择输入，并把生成的结果与项目一起保存。"
+        },
+        "image": {
+          "light": "/assets/presentation/integrations-light.svg",
+          "dark": "/assets/presentation/integrations-dark.svg",
+          "alt": {
+            "en": "Connect the pieces",
+            "zh": "输入与输出"
+          }
+        }
+      }
+    ],
+    "details": [
+      {
+        "title": {
+          "en": "Configuration",
+          "zh": "配置"
+        },
+        "body": {
+          "en": "Select before/after files and a supported claim. --lang can override extension-based detection; --json emits structured data. Programmatic EditClaim accepts source blobs, language and ClaimedAction objects with optional scope and new_symbol.",
+          "zh": "指定前后文件与支持的声明。--lang 可覆盖按扩展名检测的语言，--json 输出结构化数据。程序接口 EditClaim 接受源码、语言以及带可选 scope、new_symbol 的 ClaimedAction。"
+        }
+      },
+      {
+        "title": {
+          "en": "Further use",
+          "zh": "进一步使用"
+        },
+        "body": {
+          "en": "The CLI exposes the following operations. Commands after the example use your own paths or identifiers.",
+          "zh": "CLI 提供以下操作。示例之外的命令需要替换成你的文件路径或标识。"
+        },
+        "code": "diffgate verify --before before.py --after after.py --claim \"rename foo->bar\" --json\ndiffgate diff --before before.py --after after.py --json\ndiffgate mcp-server --stdio"
+      }
+    ]
   }
- },
- "advantages": [
-  {
-   "title": {
-    "zh": "改了还是没改？一条命令见分晓",
-    "en": "Did it actually edit? One command tells."
-   },
-   "body": {
-    "zh": "Agent 声称把 foo 改成了 bar，DiffGate 逐条核对声明的动作和真实的代码差异，对不上就亮红灯退出 —— 安静的谎变成吵闹的错。",
-    "en": "The agent claims it renamed foo to bar; DiffGate checks each claimed action against the real code delta and exits red on a mismatch — a silent lie becomes a loud error."
-   },
-   "chips": [
-    "› 9 种语言",
-    "› 退出码 0 / 1 即裁决"
-   ]
-  },
-  {
-   "title": {
-    "zh": "挂进 Agent，每一步编辑都过门",
-    "en": "Wire it into the agent — every edit gets checked"
-   },
-   "body": {
-    "zh": "注册一个 MCP 工具，Agent 每改一个文件就自检一次；对不上就把失败原因塞回去，让 Agent 自己重试，而不是等到用户发现 bug。",
-    "en": "Register one MCP tool and the agent self-checks after every file edit; on a mismatch it feeds the failure reason back to the agent to retry — instead of waiting for the user to find the bug."
-   },
-   "chips": [
-    "› MCP 协议",
-    "› Claude Code / Cursor / Codex"
-   ]
-  },
-  {
-   "title": {
-    "zh": "先看真实改了什么，再下结论",
-    "en": "See what really changed, before you trust it"
-   },
-   "body": {
-    "zh": "一条命令打印这次编辑到底加了什么、删了什么、改了哪处签名 —— Agent 拿着真实改动自我纠错，或据此写一条诚实的声明再交校验。",
-    "en": "One command prints what the edit actually added, deleted, or signature-changed — so the agent can self-correct from the real delta, or draft an honest claim before handing it to the gate."
-   },
-   "chips": [
-    "› added / deleted / changed",
-    "› --json 机器可读"
-   ]
-  },
-  {
-   "title": {
-    "zh": "9 种语言，同一道门",
-    "en": "Nine languages, one gate"
-   },
-   "body": {
-    "zh": "Python / TypeScript / TSX / JavaScript / Go / Rust / Java / C++ / Ruby 全覆盖 —— 类方法、同名重载、带外定义、Go 接口方法、Ruby 顶层类方法、命名空间与模块都按作用域精确对齐；作用域对不上如实说明，坏的声明或 trace 报成干净错误而非崩溃，不漏过、不误判。",
-    "en": "Python / TypeScript / TSX / JavaScript / Go / Rust / Java / C++ / Ruby — class methods, same-name overloads, out-of-line definitions, Go interface methods, Ruby top-level class methods, namespaces and modules all align by scope; a scope mismatch is named honestly and a malformed claim or trace surfaces as a clean error, not a crash — so nothing slips through and nothing gets a false alarm."
-   },
-   "chips": [
-    "› py · ts · go · rs · java · cpp · ruby",
-    "› 作用域不对会明说"
-   ]
-  }
- ],
- "scene": {
-  "kind": "hub-nodes",
-  "nodes": [
-   "Claude Code",
-   "Cursor",
-   "Codex",
-   "LangGraph"
-  ]
- },
- "cta": {
-  "headline": {
-   "zh": "给你的 Agent 装一道关",
-   "en": "Give your agent a gate"
-  },
-  "sub": {
-   "zh": "本地运行，Apache-2.0 开源，单条命令安装，无账号、无守护进程、无网络。",
-   "en": "Runs locally, Apache-2.0 open-source, one command to install — no account, no daemon, no network."
-  },
-  "button": {
-   "zh": "pipx install diffgate",
-   "en": "pipx install diffgate"
-  }
- },
- "footer": {
-  "tag": {
-   "zh": "把安静的谎，变成吵闹的错。",
-   "en": "Turn silent lies into loud errors."
-  }
- },
- "content_version": "v0.11.0",
- "generated_at": "2026-09-05T00:00:00Z"
 }

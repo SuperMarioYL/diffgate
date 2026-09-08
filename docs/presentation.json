@@ -1,0 +1,78 @@
+{
+  "name": "diffgate",
+  "tagline": "Check an edit claim against the code that changed.",
+  "architecture": {
+    "title": "How DiffGate works",
+    "nodes": [
+      {
+        "title": "Before / after blobs",
+        "detail": "EditClaim input"
+      },
+      {
+        "title": "Tree-sitter symbols",
+        "detail": "parsers.py"
+      },
+      {
+        "title": "Claim verifier",
+        "detail": "verifier.py"
+      },
+      {
+        "title": "CLI / MCP verdict",
+        "detail": "Machine-readable mismatch"
+      }
+    ],
+    "edges": [
+      [
+        0,
+        1
+      ],
+      [
+        1,
+        2
+      ],
+      [
+        2,
+        3
+      ]
+    ]
+  },
+  "process": {
+    "title": "From input to a useful result",
+    "steps": [
+      {
+        "title": "Declare rename",
+        "detail": "foo becomes bar"
+      },
+      {
+        "title": "Parse both versions",
+        "detail": "Python symbol structures"
+      },
+      {
+        "title": "Verify claim",
+        "detail": "Reject noop, accept rename"
+      }
+    ],
+    "result": "The unchanged case is rejected and the structurally renamed case is accepted."
+  },
+  "integrations": {
+    "title": "Supported input and output routes",
+    "items": [
+      {
+        "title": "Source blobs / files",
+        "detail": "Before and after input"
+      },
+      {
+        "title": "Edit claims",
+        "detail": "Rename, add, delete, move, signature"
+      },
+      {
+        "title": "Multiple grammars",
+        "detail": "Supported tree-sitter languages"
+      },
+      {
+        "title": "CLI / MCP",
+        "detail": "Harness integration surfaces"
+      }
+    ]
+  }
+}

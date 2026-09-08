@@ -1,192 +1,124 @@
-[简体中文](./README.md) | **English**
+[简体中文](./README.md) · [Website](https://diffgate.lei6393.com) · [GitHub](https://github.com/SuperMarioYL/diffgate)
 
-<p align="center">
-  <img src="https://capsule-render.vercel.app/api?type=waving&color=gradient&customColorList=6,11,20&height=180&section=header&text=DiffGate&fontSize=58&fontColor=ffffff&fontAlignY=38&desc=Structural%20verification%20for%20coding%20agents&descAlignY=62&descSize=14" alt="DiffGate banner" />
-</p>
+<picture>
+  <source media="(max-width: 600px) and (prefers-color-scheme: dark)" srcset="./assets/presentation/hero-mobile-dark.svg">
+  <source media="(max-width: 600px)" srcset="./assets/presentation/hero-mobile-light.svg">
+  <source media="(prefers-color-scheme: dark)" srcset="./assets/presentation/hero-dark.svg">
+  <img src="./assets/presentation/hero-light.svg" width="960" alt="Hero diagram">
+</picture>
 
-<p align="center">
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License" /></a>
-  <img src="https://img.shields.io/badge/python-3.12%2B-blue.svg" alt="Python 3.12+" />
-  <img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/SuperMarioYL/diffgate/main/bench/catch_rate.json" alt="Catch rate" />
-  <img src="https://img.shields.io/badge/languages-9-success" alt="9 languages" />
-  <img src="https://img.shields.io/badge/Coding%20Agent-gate-7c3aed" alt="Coding Agent gate" />
-  <img src="https://img.shields.io/badge/Agentic-ready-0ea5e9" alt="Agentic ready" />
-  <img src="https://img.shields.io/badge/MCP-compatible-22c55e" alt="MCP compatible" />
-</p>
+# diffgate
 
-> **DiffGate is the structural verification gate that catches lying coding agents before the loop returns success.**
+**Check an edit claim against the code that changed.**
 
-## Table of contents
+DiffGate parses before and after source blobs, computes structural changes and compares them with explicit edit claims.
 
-- [Why this exists](#why-this-exists)
-- [Architecture](#architecture)
-- [Quickstart](#quickstart)
-- [Demo](#demo)
-- [How it works](#how-it-works)
-- [vs the closest neighbors](#vs-the-closest-neighbors)
-- [Configuration](#configuration)
-- [Roadmap](#roadmap)
-- [Pricing](#pricing)
-- [License & contributing](#license--contributing)
-- [Share this](#share-this)
+## Why use it
 
-## Why now
+A successful tool response can still leave the source unchanged or modify the wrong symbol. An explicit before/after claim lets a harness check that structural work occurred before continuing.
 
-Tool-use loops became the default Coding Agent UX in late 2025 — Cursor composer, Claude Code, Codex CLI, the bundled agent in [langgenius/dify](https://github.com/langgenius/dify), and adapters like [ChromeDevTools/chrome-devtools-mcp](https://github.com/ChromeDevTools/chrome-devtools-mcp). They all share one failure mode: the agent returns `success` on an edit step when the diff is empty, in the wrong region, or only describes the change in a comment. Reuben Brooks' essay *Structural Backpressure Beats Smarter Agents* (HN 144 pts) named the missing piece; Tessl's 1,281-run study quantified it as one of the top failure classes on large codebases. DiffGate is a working implementation of that thesis — an exit-code-1 AST gate that drops into the Agentic loop without retraining anything.
+- **Deterministic mismatch** — The verdict comes from source structure.
+- **Scope-aware claims** — Claims can target a specific symbol scope.
+- **Common core** — CLI and MCP expose the same verifier.
 
-## Why this exists
+## Architecture
 
-Coding agents — Cursor, Claude Code, Codex, GPT-5.5 — frequently report `success` on edit steps when the diff is empty, in the wrong file, or only promised in a comment. No mainstream agent framework performs structural verification after the edit. DiffGate sits between the agent's tool call and the next loop iteration: it parses the AST before and after, compares against the agent's own `claimed_actions`, and returns `exit_code=1` on mismatch so the loop retries. A class of silent lies becomes loud, retry-triggering errors.
+<picture>
+  <source media="(max-width: 600px) and (prefers-color-scheme: dark)" srcset="./assets/presentation/architecture-mobile-dark.svg">
+  <source media="(max-width: 600px)" srcset="./assets/presentation/architecture-mobile-light.svg">
+  <source media="(prefers-color-scheme: dark)" srcset="./assets/presentation/architecture-dark.svg">
+  <img src="./assets/presentation/architecture-light.svg" width="960" alt="Architecture diagram">
+</picture>
 
-## <img src="https://api.iconify.design/tabler:topology-star-3.svg?color=%230071E3&width=24" height="22" align="absmiddle" alt=""> Architecture
+Tree-sitter parsers extract symbols and scopes. The verifier computes added, deleted, signature-changed and body-changed symbols, then matches supported claimed actions. CLI and MCP return the same deterministic verdict and mismatch evidence.
 
-<p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="./assets/atlas-dark.svg">
-    <source media="(prefers-color-scheme: light)" srcset="./assets/atlas-light.svg">
-    <img src="./assets/atlas-light.svg" width="880" alt="A coding agent emits an EditClaim (before/after blob + claimed actions); DiffGate parses both sides with tree-sitter and matches the claims against the AST diff; the Verdict either passes the loop (exit 0) or returns exit_code 1 as structural backpressure that retries the agent">
-  </picture>
-</p>
+| Component | Responsibility |
+| --- | --- |
+| `Before / after blobs` | EditClaim input |
+| `Tree-sitter symbols` | parsers.py |
+| `Claim verifier` | verifier.py |
+| `CLI / MCP verdict` | Machine-readable mismatch |
 
-A coding agent (Cursor / Claude Code / Codex / LangGraph) emits an **`EditClaim`** after every edit — the before-blob, the after-blob, and the actions it claims it performed. `cli.py` and `mcp_server.py` are two thin shells over the same `verifier.verify(EditClaim) → Verdict`: the core parses both sides into an AST with tree-sitter (Python / TypeScript / TSX / JavaScript / Go / Rust / Java / C++ / Ruby) and aligns each claim against the real structural diff. The **Verdict** either passes the loop through (`exit 0`) or returns `exit_code=1` as **structural backpressure**, bouncing the agent back to retry with the mismatch reasons attached — all local, offline and deterministic, with no daemon, no DB and no network calls.
+## Install and quickstart
 
-## Quickstart
+Build with the version declared in the repository manifest. Run the example from the repository root.
 
 ```bash
-pipx install diffgate                                          # ≤30s
-diffgate verify --before X.py --after X.py.new --claim "rename foo→bar"
-diffgate diff --before X.py --after X.py.new                   # just the structural diff, no verdict (--json machine-readable)
-diffgate mcp-server --stdio                                    # register in Claude Code / Cursor mcp.json
+git clone https://github.com/SuperMarioYL/diffgate.git
+cd diffgate
+uv venv .venv
+uv pip install --python .venv/bin/python -e .
+source .venv/bin/activate
 ```
 
-> `verify` takes an `EditClaim` and **judges** it against the structural diff; `diff` prints the structural diff (added / deleted / signature_changed / body_changed) as a first-class output — so an agent or CI step can inspect the real diff to self-correct a failed claim or draft a **truthful** `claimed_actions` before handing it to `verify`.
-
-Drop these three lines into `~/.config/claude-code/mcp.json` (or the Cursor equivalent):
-
-```json
-{
-  "mcpServers": {
-    "diffgate": { "command": "diffgate", "args": ["mcp-server", "--stdio"] }
-  }
-}
-```
-
-Full hook walkthrough: [`examples/claude_code_hook.md`](./examples/claude_code_hook.md). Cursor integration: [`examples/cursor_integration.md`](./examples/cursor_integration.md).
-
-## <img src="https://api.iconify.design/tabler:photo.svg?color=%230071E3&width=24" height="22" align="absmiddle" alt=""> Demo
-
-<p align="center">
-  <img src="./assets/demo.gif" alt="diffgate verify terminal demo: Claude Code claims a rename but ships an empty diff, DiffGate returns exit_code 1" width="820" />
-</p>
-
-<sub>↑ Recorded in the terminal (rendered in CI by <a href="https://github.com/charmbracelet/vhs">vhs</a> from <a href="./docs/demo.tape">docs/demo.tape</a>, regenerated on every tag).</sub>
-
-60 seconds: Claude Code claims it renamed `foo` to `bar` across `module_x.py` → DiffGate parses both blobs → AST shows zero renames → `exit_code=1` → agent retries with the failure context.
-
-## How it works
-
-Three local processes, all offline:
-
-```
-[ coding agent ]  ──tool_call──►  [ diffgate MCP server (python) ]
-                                          │
-                                          ▼
-                                  [ verifier core ]
-                                   ├── tree-sitter parsers (py/ts/tsx/js/go/rs/java/cpp/ruby)
-                                   └── claim → ast_change matcher
-```
-
-The core data primitive is the **`EditClaim`**:
-
-```python
-EditClaim {
-  before_blob: str
-  after_blob: str
-  claimed_actions: [
-    {kind: "rename"|"add"|"delete"|"move"|"signature_change",
-     symbol: str, scope: str}
-  ]
-}
-→ Verdict { passed: bool, mismatches: [...], structural_diff: ast_summary }
-```
-
-`cli.py` and `mcp_server.py` are thin wrappers over the same `verifier.verify(edit_claim) → Verdict`. No daemon, no DB, no network calls.
-
-### Scope-aware matching — v0.2.0
-
-The `scope` field in `claimed_actions` is now strictly enforced. Claiming
-`add MyClass.helper` only passes when `helper` really lands inside `MyClass` —
-an agent that added a module-level `helper()` instead no longer satisfies it.
-This closes a common silent lie: conflating a class method with a same-named
-free function.
+Compare the same explicit foo-to-bar rename claim against unchanged Python source and a real renamed function.
 
 ```bash
-# Agent claims it added method helper to class A, but only added a free function → exit_code 1
-diffgate verify --before a.py --after a.py.new --claim "add helper in A"
+.venv/bin/python examples/presentation-demo.py
 ```
 
-An empty `scope` stays a wildcard and matches by symbol name (identical to v0.1
-behaviour), so existing unscoped claims are unaffected.
+## Recorded demo
 
-## vs the closest neighbors
+<picture>
+  <source media="(max-width: 600px) and (prefers-color-scheme: dark)" srcset="./assets/presentation/process-mobile-dark.svg">
+  <source media="(max-width: 600px)" srcset="./assets/presentation/process-mobile-light.svg">
+  <source media="(prefers-color-scheme: dark)" srcset="./assets/presentation/process-dark.svg">
+  <img src="./assets/presentation/process-light.svg" width="960" alt="Process diagram">
+</picture>
 
-Honest comparison — DiffGate is narrow on purpose:
+The unchanged case is rejected and the structurally renamed case is accepted.
 
-| Axis                                       | DiffGate           | [Aider](https://github.com/Aider-AI/aider) test-loop | [langgenius/dify](https://github.com/langgenius/dify) | [ChromeDevTools/chrome-devtools-mcp](https://github.com/ChromeDevTools/chrome-devtools-mcp) |
-| ------------------------------------------ | ------------------ | ---------------------------------------------------- | ----------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| Catches empty-diff / wrong-region "success" | ✓                  | —                                                    | —                                                     | —                                                                                           |
-| Behavioral correctness (runs tests)        | —                  | ✓                                                    | partial                                               | —                                                                                           |
-| Agentic workflow orchestration             | —                  | partial                                              | **✓ (far beyond DiffGate)**                          | —                                                                                           |
-| Browser / DevTools-side observation        | —                  | —                                                    | —                                                     | **✓ (far beyond DiffGate)**                                                                |
-| Cross-agent / cross-IDE                    | ✓ (MCP protocol)   | Aider-only                                           | Dify-only                                             | Chrome-only                                                                                 |
-| Deployment                                 | single local proc  | single proc                                          | multi-service / containers                            | Chrome extension                                                                            |
+```text
+{"case": "unchanged", "passed": false, "mismatches": ["claimed rename foo\u2192bar but neither name appears in the structural diff (no-op edit)"]}
+{"case": "renamed", "passed": true, "mismatches": []}
+```
 
-DiffGate fixes one class of bug (structural lies). It doesn't replace any of the above. Aider remains the better pair-programmer; Dify the better Agent orchestrator; chrome-devtools-mcp remains the only browser-side observer.
+The complete command and output are recorded in [docs/demo-results.json](./docs/demo-results.json). Inputs and reproduction code are included in the repository.
+
+![Existing terminal recording](./assets/demo.gif)
+
+The existing recording is retained for context; the text example above documents the reproducible scenario.
+
+## Usage
+
+The CLI exposes the following operations. Commands after the example use your own paths or identifiers.
+
+```bash
+diffgate verify --before before.py --after after.py --claim "rename foo->bar" --json
+diffgate diff --before before.py --after after.py --json
+diffgate mcp-server --stdio
+```
 
 ## Configuration
 
-| Key              | Type   | Default            | Meaning                                                     |
-| ---------------- | ------ | ------------------ | ----------------------------------------------------------- |
-| `languages`      | list   | `[py, ts, tsx, js, go, rs, java, cpp, ruby]` | Enabled tree-sitter parsers                                 |
-| `strict_renames` | bool   | `true`             | Rename claim must touch all references; `false` only verifies declaration |
-| `mcp.transport`  | enum   | `stdio`            | `stdio` or `sse`                                            |
-| `bench.traces`   | path   | bundled 200        | Ground-truth JSONL consumed by `diffgate bench`             |
+Select before/after files and a supported claim. --lang can override extension-based detection; --json emits structured data. Programmatic EditClaim accepts source blobs, language and ClaimedAction objects with optional scope and new_symbol.
 
-Full config in `diffgate --help`.
+## Integrations and responsibilities
 
-## Roadmap
+<picture>
+  <source media="(max-width: 600px) and (prefers-color-scheme: dark)" srcset="./assets/presentation/integrations-mobile-dark.svg">
+  <source media="(max-width: 600px)" srcset="./assets/presentation/integrations-mobile-light.svg">
+  <source media="(prefers-color-scheme: dark)" srcset="./assets/presentation/integrations-dark.svg">
+  <img src="./assets/presentation/integrations-light.svg" width="960" alt="Integrations diagram">
+</picture>
 
-- [x] **m1 — `diffgate verify`**: CLI + Python/TS parsers + 20 hand-crafted silent-lie fixtures all detected
-- [x] **m2 — `diffgate mcp-server`**: MCP `verify_edit` tool, plug-and-play with Claude Code / Cursor
-- [x] **m3 — `diffgate bench`**: replay traces, emit precision/recall
-- [x] **v0.2 — scope-aware verification**: strict `scope` matching that catches "class method vs same-named free function" confusion
-- [x] **v0.3 — CLI/MCP parity + more languages**: structured `--claim-file` (incl. stdin), multi-file verify, new Java / C++ / Ruby parsers, plus three silent-lie fixes
-- [x] **v0.4 — multi-language correctness + catch-rate badge**: fixed C++ out-of-line methods / Java records / `.h` header extension / MCP+README language lists; README badge wired to a reproducible bench
-- [x] **v0.5 — multi-language verifier cleanup**: overloads pair by content (C++/Java overload reorder no longer fabricates a sig change), Go methods carry their receiver type as scope
-- [x] **v0.6 — `diffgate diff` + last two over-flag fixes**: new `diffgate diff` subcommand exposes the structural diff as a first-class output; Rust `impl`-block methods and TS/JS class arrow-function properties (`handle = (req) => {}`) now carry the correct scope
-- [ ] **DiffGate Cloud** (paid): cross-team catch-rate aggregation, SSO, Prometheus exporter
-- [ ] **framework integrations**: official optional gate in LangGraph / Mastra / Autogen
+The following routes are implemented in the source. Choose the input that matches your task and keep the resulting artifact with your project.
 
-## Pricing
+| Route | Implemented role |
+| --- | --- |
+| Source blobs / files | Before and after input |
+| Edit claims | Rename, add, delete, move, signature |
+| Multiple grammars | Supported tree-sitter languages |
+| CLI / MCP | Harness integration surfaces |
 
-**Self-hosted is free forever.** CLI, MCP server, tree-sitter parsers, bench harness — all MIT, no phone-home.
+## Limits and next steps
 
-**Paid product (v0.2) — DiffGate Cloud.** A hosted aggregation dashboard for internal Dev Platform teams (ByteDance, Alibaba, Tencent, Meituan, JD-class orgs). Aggregates per-engineer / per-team agent catch-rates, ships with SSO, audit log, Prometheus exporter, and prioritized Java / C++ parsers. Indicative price ~**¥1,200 / engineer / year (≈ USD 165)**, volume-tiered — roughly one-third of a Cursor Business seat, positioned as "the safety net for the seat you already pay for." Pilot path: 14-day free trial → day-14 readout (aggregated catch-rate + estimated engineer-hours saved) → annual contract from ¥100k minimum, scaling by seats. Billing via Stripe (USD) + Alipay International / WeChat Merchant (CNY).
+- A structural match does not prove semantic correctness, complete reference updates or passing tests.
+- Claims cover the supported action vocabulary and parser behavior. Keep normal testing alongside this gate.
+- The demo checks only a small Python rename case, not every supported language or cross-file scenario.
 
-If you run platform engineering at a large Chinese tech org, email `leo.stack@outlook.com` for a pilot slot.
+Further grammar and scope refinements should follow reproducible mismatches. Structural verification remains complementary to behavioral tests.
 
-## License & contributing
+## License and contributions
 
-MIT — see [LICENSE](./LICENSE). False positives, missed catches, ergonomics — all welcome as issues; paste an `EditClaim` `before`/`after` and reproduction is cheap. Please open an issue before sending a PR so we can align scope.
-
-## Share this
-
-```
-DiffGate — the structural verification gate for your Coding Agent.
-Drops into the Agentic loop and turns "I fixed it" lies into exit-code 1.
-OSS, MCP-native. https://github.com/SuperMarioYL/diffgate
-```
-
----
-
-<sub>MIT © 2026 SuperMarioYL</sub>
+See [LICENSE](./LICENSE). When reporting an issue, include a minimal input, the command, and the observed output.

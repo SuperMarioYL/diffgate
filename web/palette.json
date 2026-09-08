@@ -1,0 +1,38 @@
+{
+  "mode": "auto",
+  "id": "e656c9-e76a8b-eaacf6-98151e5e1720",
+  "identity": "https://github.com/supermarioyl/diffgate",
+  "primary": "#e656c9",
+  "secondary": "#e76a8b",
+  "highlight": "#eaacf6",
+  "dark": {
+    "bg": "#0a0711",
+    "panel": "#13101d",
+    "code": "#140d1b",
+    "ink": "#fbeefd",
+    "muted": "#b29cbf",
+    "line": "#3a1839",
+    "primary": "#e656c9",
+    "secondary": "#e76a8b",
+    "highlight": "#eaacf6",
+    "accent": "#e656c9",
+    "buttonStart": "#be47a6",
+    "buttonEnd": "#ba5670",
+    "buttonText": "#ffffff"
+  },
+  "light": {
+    "bg": "#fef9fd",
+    "panel": "#fef7fc",
+    "code": "#fdf3fb",
+    "ink": "#27162c",
+    "muted": "#725e82",
+    "line": "#f7cbee",
+    "primary": "#b5449f",
+    "secondary": "#b2516b",
+    "highlight": "#896490",
+    "accent": "#b5449f",
+    "buttonStart": "#be47a6",
+    "buttonEnd": "#ba5670",
+    "buttonText": "#ffffff"
+  }
+}
