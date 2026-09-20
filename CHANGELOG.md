@@ -6,6 +6,56 @@ All notable changes to DiffGate are documented here. Format follows
 
 ## [Unreleased]
 
+## [0.12.0]
+
+Two more signature-visibility over-flag fixes (Rust trait method
+declarations, return types in signature text) and two output-contract fixes
+that close the gaps the v0.11.0 bench bad-row fix left for malformed-JSON
+rows, plus a nondeterministic diff ordering that violated the verifier's own
+determinism contract.
+
+### Fixed
+- **Rust trait method declarations are now parsed.** `LANGUAGE_RULES["rust"]`
+  omitted the `function_signature_item` node that holds a trait method
+  declaration (`trait Repository { fn find(&self, id: u64) -> Option<User>; }`),
+  so a trait yielded only the `Repository` trait symbol and zero method
+  symbols — and a truthful `add find scope=Repository` /
+  `signature_change find scope=Repository` false-failed. Java abstract
+  methods, TS `method_signature`, C++ header prototypes, and Go interface
+  methods are all parsed (the v0.11.0 changelog called Go the one uncovered
+  language), so Rust traits were the last declaration/signature split left
+  in the dark. A one-line rule addition now parses them; the trait's scope
+  flows to each declaration through the existing `_walk` path.
+- **The declared return type is now part of the signature text.**
+  `_signature_text` read only the `parameters` field, so a return-type-only
+  edit — `def fetch() -> Response:` changed to `-> dict:` — produced an
+  identical signature and an unchanged body hash, the structural diff was a
+  no-op, and a truthful `signature_change fetch` false-failed. The same
+  blind spot spanned every typed language DiffGate supports (the signature
+  text excluded the return type for python/typescript/go/rust/java/cpp).
+  The return type is now appended to the signature (`() -> Response`,
+  `(a int) -> (int, error)`), read from the per-language grammar field
+  (`return_type` / `result` / `type` — the `type` field only for java/cpp,
+  since go's `type_spec` exposes an unrelated `type`). Symbols without a
+  return type keep their bare parameter-list text.
+- **A malformed-JSON trace row no longer crashes the bench.** `iter_traces`
+  raised `ValueError` for a line that is not valid JSON, and `run_bench`
+  iterated it outside any per-row try, so ONE truncated or hand-edited trace
+  line aborted the whole replay with a traceback (through `bench_cmd`, at
+  exit code 1) — the same bad-row class the v0.11.0 non-object-row fix
+  covered, left incomplete for rows that never parse. Per-line JSON parsing
+  now lives inside `run_bench`'s existing per-row error handling: a
+  malformed row is scored as a parse error (uncounted, cited as `line-N`)
+  and the rows around it still score. The strict `iter_traces` contract for
+  direct callers is unchanged.
+- **`structural_diff` entry order is now deterministic across processes.**
+  `_compute_diff` iterated `set(before_by_key) & set(after_by_key)`, whose
+  order varies with `PYTHONHASHSEED`, so the order of `signature_changed` /
+  `body_changed` / `unchanged` entries in the JSON output differed between
+  runs on identical inputs — violating the verifier's own "same blobs, same
+  claim, same verdict" contract. Shared keys are now iterated in
+  `after_by_key` insertion order, so diff entries come out in source order.
+
 ## [0.11.0]
 
 Two more language-coverage over-flag fixes (Go interface methods, Ruby

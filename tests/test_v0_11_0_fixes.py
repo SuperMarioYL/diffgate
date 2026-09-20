@@ -68,7 +68,9 @@ def test_go_interface_method_is_parsed_with_scope() -> None:
     )
     method = next(s for s in syms if s.name == "Method")
     assert (method.scope, method.kind) == ("Iface", "method")
-    assert method.signature == "(x int)"
+    # v0.12.0: the interface method's declared result type is now part of the
+    # signature text (previously only the parameter list was).
+    assert method.signature == "(x int) -> int"
     assert method.body_hash == ""
 
 

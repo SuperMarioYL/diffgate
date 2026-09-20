@@ -184,7 +184,9 @@ def test_cpp_method_declaration_in_struct_yields_symbol() -> None:
     assert bar.kind == "method"
     assert bar.scope == "Foo"
     assert bar.body_hash == "", "a prototype has no body"
-    assert bar.signature == "()"
+    # v0.12.0: the prototype's declared return type is now part of the
+    # signature text (previously only the parameter list was).
+    assert bar.signature == "() -> void"
 
 
 def test_cpp_method_declaration_truthful_signature_change_passes() -> None:

@@ -258,18 +258,24 @@ def _compute_diff(before: list[Symbol], after: list[Symbol]) -> StructuralDiff:
         if key not in after_by_key:
             deleted.extend(before_syms)
 
-    for key in set(before_by_key) & set(after_by_key):
-        before_syms = before_by_key[key]
-        after_syms = after_by_key[key]
-        _diff_symbol_group(
-            before_syms,
-            after_syms,
-            added=added,
-            deleted=deleted,
-            signature_changed=signature_changed,
-            body_changed=body_changed,
-            unchanged=unchanged,
-        )
+    # Iterate the shared keys in after_by_key insertion order (= source order)
+    # rather than over a set intersection: set iteration order varies with
+    # PYTHONHASHSEED across processes, so the ORDER of signature_changed /
+    # body_changed / unchanged entries used to differ between runs on identical
+    # inputs — violating the "same blobs, same claim, same verdict" contract
+    # the CLI/MCP JSON output is consumed under. added/deleted below already
+    # iterate dicts in insertion order.
+    for key, after_syms in after_by_key.items():
+        if key in before_by_key:
+            _diff_symbol_group(
+                before_by_key[key],
+                after_syms,
+                added=added,
+                deleted=deleted,
+                signature_changed=signature_changed,
+                body_changed=body_changed,
+                unchanged=unchanged,
+            )
 
     return StructuralDiff(
         added=added,

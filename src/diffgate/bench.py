@@ -101,34 +101,58 @@ class BenchResult:
         }
 
 
-def iter_traces(path: Path) -> Iterable[dict[str, object]]:
-    """Yield one parsed JSON record per line, skipping blanks and ``# comments``."""
+def _iter_trace_lines(path: Path) -> Iterable[tuple[int, str]]:
+    """Yield ``(lineno, stripped line)`` for non-blank, non-``# comment`` lines.
+
+    The line-level filtering both :func:`iter_traces` and :func:`run_bench`
+    need; parsing is deliberately NOT done here so :func:`run_bench` can parse
+    each line inside its own per-row error handling.
+    """
     with path.open("r", encoding="utf-8") as fh:
         for lineno, raw in enumerate(fh, start=1):
             line = raw.strip()
             if not line or line.startswith("#"):
                 continue
-            try:
-                yield json.loads(line)
-            except json.JSONDecodeError as exc:
-                raise ValueError(
-                    f"{path}:{lineno}: invalid JSON ({exc.msg})"
-                ) from exc
+            yield lineno, line
+
+
+def iter_traces(path: Path) -> Iterable[dict[str, object]]:
+    """Yield one parsed JSON record per line, skipping blanks and ``# comments``.
+
+    Raises ``ValueError`` on a line that is not valid JSON — the strict
+    contract for direct callers. :func:`run_bench` does NOT use this: the bench
+    must be robust to bad rows, so it parses each line inside its own per-row
+    error handling and scores a malformed row as a parse error instead of
+    aborting the whole replay.
+    """
+    for lineno, line in _iter_trace_lines(path):
+        try:
+            yield json.loads(line)
+        except json.JSONDecodeError as exc:
+            raise ValueError(
+                f"{path}:{lineno}: invalid JSON ({exc.msg})"
+            ) from exc
 
 
 def run_bench(traces_path: Path) -> BenchResult:
     """Replay ``traces_path`` and return aggregated bench numbers."""
     result = BenchResult()
-    for record in iter_traces(traces_path):
+    for lineno, line in _iter_trace_lines(traces_path):
         # Pre-initialise so a row that fails BEFORE its label is read — a
         # non-object JSON line (a bare list / number / string) has no ``.get``,
         # so ``record.get(...)`` used to raise ``AttributeError`` OUTSIDE the
         # try and crash run_bench, breaking the "robust to bad rows" contract.
         # Reading the label inside the try (and guarding non-object rows) lets
-        # such a row be scored as a parse error instead.
+        # such a row be scored as a parse error instead. The JSON parse itself
+        # also lives inside the try: a line that is not valid JSON at all (a
+        # truncated or hand-edited row) used to raise out of ``iter_traces``
+        # and abort the whole replay with a traceback.
         trace_id = f"trace_{result.total}"
         was_lie = False
+        json_parsed = False
         try:
+            record = json.loads(line)
+            json_parsed = True
             if not isinstance(record, dict):
                 raise ValueError(
                     f"trace row is not a JSON object ({type(record).__name__})"
@@ -144,15 +168,18 @@ def run_bench(traces_path: Path) -> BenchResult:
             # catch-rate tells the truth. A non-lie row that crashes can't be
             # scored as a truthful pass, so it's surfaced as uncounted.
             result.parse_errors += 1
+            # A row whose JSON never parsed has no trace id of its own; cite
+            # the line number so the example lists stay actionable.
+            example_id = trace_id if json_parsed else f"line-{lineno}"
             if was_lie:
                 result.total += 1
                 result.false_negatives += 1
                 if len(result.missed_examples) < 5:
-                    result.missed_examples.append(trace_id)
+                    result.missed_examples.append(example_id)
             else:
                 result.uncounted += 1
                 if len(result.uncounted_examples) < 5:
-                    result.uncounted_examples.append(trace_id)
+                    result.uncounted_examples.append(example_id)
             continue
 
         result.total += 1

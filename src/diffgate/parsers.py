@@ -104,6 +104,20 @@ LANGUAGE_RULES: dict[str, dict[str, tuple[str, None]]] = {
     },
     "rust": {
         "function_item": ("function", None),
+        # `trait Repository { fn find(&self, id: u64) -> Option<User>; }` — a
+        # trait method DECLARATION is a `function_signature_item` (a signature
+        # with no body, Rust's interface surface). Without this rule a trait
+        # yields only the trait symbol and zero method symbols, so a truthful
+        # `add find scope=Repository` / `signature_change find scope=Repository`
+        # false-fails — the same declaration/signature-split gap closed for Go
+        # interfaces, Java abstract methods, TS method_signature, and C++ header
+        # prototypes; the v0.11.0 Go fix believed Rust traits weren't left over.
+        # The trait's scope flows to each signature through the existing `_walk`
+        # path (trait_item is a class whose next_scope propagates) and
+        # `_find_name`/`_signature_text` already read the `name`/`parameters`/
+        # `return_type` fields tree-sitter exposes (`body_hash` stays "" since a
+        # declaration has no body), so a one-line rule addition is the fix.
+        "function_signature_item": ("function", None),
         "struct_item": ("class", None),
         "enum_item": ("class", None),
         "trait_item": ("class", None),
@@ -150,6 +164,22 @@ _FUNCTION_VALUE_NODE_TYPES = {"arrow_function", "function_expression"}
 
 # Node types whose name should be propagated as a scope prefix to children.
 SCOPE_NODE_KINDS = {"class", "method"}
+
+# The grammar field carrying a function-ish node's declared return type, per
+# language. The `type` field is only safe to read for java and cpp: go's
+# `type_spec` also exposes a `type` field (the underlying struct/interface
+# text), and reading it there would append a whole struct body to a type
+# alias's signature. Ruby has no return types.
+_RETURN_TYPE_FIELD: dict[str, str] = {
+    "python": "return_type",
+    "typescript": "return_type",
+    "tsx": "return_type",
+    "javascript": "return_type",
+    "go": "result",
+    "rust": "return_type",
+    "java": "type",
+    "cpp": "type",
+}
 
 
 class UnsupportedLanguageError(ValueError):
@@ -270,7 +300,7 @@ def _walk(node, language: str, source: bytes, scope: str, out: list[Symbol]) -> 
                         sym_scope = recv
                         if effective_kind == "function":
                             effective_kind = "method"
-            sig = _signature_text(value_node or node, source)
+            sig = _signature_text(value_node or node, language, source)
             body_h = _body_hash(value_node or node, source)
             out.append(
                 Symbol(
@@ -401,7 +431,7 @@ def _walk(node, language: str, source: bytes, scope: str, out: list[Symbol]) -> 
                     Symbol(
                         name=name,
                         kind=effective_kind,
-                        signature=_signature_text(node, source),
+                        signature=_signature_text(node, language, source),
                         scope=sym_scope,
                         body_hash="",
                         line=node.start_point[0] + 1,
@@ -599,23 +629,54 @@ def _rust_impl_type_name(node, source: bytes) -> str | None:
     return None
 
 
-def _signature_text(node, source: bytes) -> str:
+def _return_type_text(node, language: str, source: bytes) -> str | None:
+    """Return the declared return type of a function-ish node, or ``None``.
+
+    A signature-only edit that changes ONLY the return type (``def fetch() ->
+    Response:`` → ``-> dict:``) used to be structurally invisible: the
+    parameter-list text was identical and the body untouched, so the diff was a
+    no-op and a truthful ``signature_change`` claim false-failed — across every
+    typed language DiffGate supports. The return type is now part of the
+    signature text via :func:`_signature_text`. TS/TSX/JS render the annotation
+    node with its leading ``: `` token — strip it so every language normalizes
+    to the bare type text.
+    """
+    field = _RETURN_TYPE_FIELD.get(language)
+    if field is None:
+        return None
+    type_node = node.child_by_field_name(field)
+    if type_node is None:
+        return None
+    text = _node_text(type_node, source).strip()
+    if language in {"typescript", "tsx", "javascript"} and text.startswith(":"):
+        text = text[1:].strip()
+    return text or None
+
+
+def _signature_text(node, language: str, source: bytes) -> str:
     params = node.child_by_field_name("parameters")
     if params is not None:
-        return _node_text(params, source)
-    # C++ exposes parameters on the inner function_declarator, not on the
-    # function_definition itself.
-    declarator = node.child_by_field_name("declarator")
-    while declarator is not None:
-        cpp_params = declarator.child_by_field_name("parameters")
-        if cpp_params is not None:
-            return _node_text(cpp_params, source)
-        declarator = declarator.child_by_field_name("declarator")
-    # Rust functions sometimes only expose the signature on a child node.
-    sig_node = node.child_by_field_name("signature")
-    if sig_node is not None:
-        return _node_text(sig_node, source)
-    return ""
+        params_text = _node_text(params, source)
+    else:
+        # C++ exposes parameters on the inner function_declarator, not on the
+        # function_definition itself.
+        params_text = ""
+        declarator = node.child_by_field_name("declarator")
+        while declarator is not None:
+            cpp_params = declarator.child_by_field_name("parameters")
+            if cpp_params is not None:
+                params_text = _node_text(cpp_params, source)
+                break
+            declarator = declarator.child_by_field_name("declarator")
+        if not params_text:
+            # Rust functions sometimes only expose the signature on a child node.
+            sig_node = node.child_by_field_name("signature")
+            if sig_node is not None:
+                params_text = _node_text(sig_node, source)
+    ret = _return_type_text(node, language, source)
+    if ret:
+        return f"{params_text} -> {ret}" if params_text else f"-> {ret}"
+    return params_text
 
 
 def _body_hash(node, source: bytes) -> str:

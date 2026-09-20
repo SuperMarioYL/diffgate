@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "diffgate"
-version = "0.11.0"
+version = "0.12.0"
 description = "Verify declared code edits against tree-sitter structural differences and expose deterministic verdicts through CLI or MCP."
 readme = "README.md"
 requires-python = ">=3.12"
