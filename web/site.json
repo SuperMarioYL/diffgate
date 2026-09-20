@@ -10,7 +10,8 @@
   },
   "meta": {
     "visual_style": "neon-particle",
-    "demo_source": "docs/demo-results.json"
+    "demo_source": "docs/demo-results.json",
+    "content_version": "0.12.0"
   },
   "hero": {
     "headline": {
@@ -30,8 +31,8 @@
         "zh": "确定性不匹配"
       },
       "body": {
-        "en": "The verdict comes from source structure.",
-        "zh": "结论来自源码结构。"
+        "en": "The verdict comes from source structure, and the structural diff is stable across runs — same blobs, same claim, same output order.",
+        "zh": "结论来自源码结构，结构 diff 跨进程运行保持一致 —— 相同源码与声明，输出顺序也相同。"
       }
     },
     {
@@ -224,5 +225,12 @@
       }
     ]
   },
-  "content_version": "v0.11.0"
+  "changelog": [
+    {
+      "version": "v0.12.0",
+      "zh": "解析 Rust trait 方法声明，并把声明的返回类型并入签名文本（改返回类型的编辑现在可见，签名声明不再误报）；损坏的 JSONL 基准行按解析错误计分而不再崩溃；structural_diff 的条目顺序跨进程确定。",
+      "en": "Rust trait method declarations are parsed, and the declared return type is now part of the signature text (return-type-only edits are visible, so truthful signature claims no longer false-fail); a malformed-JSONL bench row is scored as a parse error instead of crashing the run; structural_diff entry order is deterministic across processes."
+    }
+  ],
+  "content_version": "v0.12.0"
 }
