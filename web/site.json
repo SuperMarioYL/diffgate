@@ -11,7 +11,7 @@
   "meta": {
     "visual_style": "neon-particle",
     "demo_source": "docs/demo-results.json",
-    "content_version": "0.12.0"
+    "content_version": "0.13.0"
   },
   "hero": {
     "headline": {
@@ -227,10 +227,10 @@
   },
   "changelog": [
     {
-      "version": "v0.12.0",
-      "zh": "解析 Rust trait 方法声明，并把声明的返回类型并入签名文本（改返回类型的编辑现在可见，签名声明不再误报）；损坏的 JSONL 基准行按解析错误计分而不再崩溃；structural_diff 的条目顺序跨进程确定。",
-      "en": "Rust trait method declarations are parsed, and the declared return type is now part of the signature text (return-type-only edits are visible, so truthful signature claims no longer false-fail); a malformed-JSONL bench row is scored as a parse error instead of crashing the run; structural_diff entry order is deterministic across processes."
+      "version": "v0.13.0",
+      "zh": "不合规范的 claim 文件与非 UTF-8 源码文件现在返回文档约定的退出码 2（干净的用法错误），不再以退出码 1 抛出 Python traceback；打包元数据里的 URL 全部指向真实仓库；CHANGELOG 补回 v0.8.0/v0.9.0 章节并修复链接引用；src/diffgate/__init__.py 成为唯一版本源，pyproject.toml 由它派生。",
+      "en": "A malformed claim file and a source file that is not valid UTF-8 now return the documented clean exit-2 usage error instead of a Python traceback at exit 1; every packaged metadata URL points at the real repository; the changelog regains the missing v0.8.0/v0.9.0 sections and its link references; and src/diffgate/__init__.py is the single version source that pyproject.toml derives from."
     }
   ],
-  "content_version": "v0.12.0"
+  "content_version": "v0.13.0"
 }

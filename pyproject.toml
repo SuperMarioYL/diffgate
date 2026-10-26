@@ -4,7 +4,11 @@ build-backend = "hatchling.build"
 
 [project]
 name = "diffgate"
-version = "0.12.0"
+# Single version source: the string lives in src/diffgate/__init__.py and
+# hatchling reads it from there. A second copy here had to be bumped in
+# lockstep by hand, which is how the package string once sat at 0.7.0 while the
+# GitHub lineage was already at v0.8.0 (tests/test_v0_9_0_fixes.py).
+dynamic = ["version"]
 description = "Verify declared code edits against tree-sitter structural differences and expose deterministic verdicts through CLI or MCP."
 readme = "README.md"
 requires-python = ">=3.12"
@@ -52,10 +56,13 @@ dev = [
 diffgate = "diffgate.cli:app"
 
 [project.urls]
-Homepage = "https://github.com/supermario-leo/diffgate"
-Repository = "https://github.com/supermario-leo/diffgate"
-Issues = "https://github.com/supermario-leo/diffgate/issues"
-Changelog = "https://github.com/supermario-leo/diffgate/blob/main/CHANGELOG.md"
+Homepage = "https://github.com/SuperMarioYL/diffgate"
+Repository = "https://github.com/SuperMarioYL/diffgate"
+Issues = "https://github.com/SuperMarioYL/diffgate/issues"
+Changelog = "https://github.com/SuperMarioYL/diffgate/blob/main/CHANGELOG.md"
+
+[tool.hatch.version]
+path = "src/diffgate/__init__.py"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/diffgate"]

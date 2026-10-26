@@ -38,6 +38,17 @@ class ClaimedAction:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> ClaimedAction:
+        # A non-object entry (a bare string / number in a ``claimed_actions``
+        # list) used to raise ``TypeError`` from the ``data["kind"]`` lookup
+        # below — the one malformed-action shape the CLI's KeyError/ValueError
+        # handlers don't cover, so it leaked a traceback at exit 1 instead of
+        # the clean exit-2 usage error every other bad claim file produces.
+        # Validate here: this is the single action-shape boundary the CLI, the
+        # MCP ``verify_edit`` tool and the bench all funnel through.
+        if not isinstance(data, dict):
+            raise ValueError(
+                f"claimed action must be a JSON object, got {type(data).__name__}"
+            )
         kind = data["kind"]
         if kind not in VALID_KINDS:
             raise ValueError(

@@ -271,7 +271,6 @@ wheels = [
 
 [[package]]
 name = "diffgate"
-version = "0.12.0"
 source = { editable = "." }
 dependencies = [
     { name = "mcp" },

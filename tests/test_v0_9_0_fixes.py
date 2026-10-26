@@ -276,21 +276,31 @@ def test_cpp_top_level_data_declaration_not_emitted() -> None:
 # fix-version-string-drift-07-vs-08 (src/diffgate/__init__.py + pyproject.toml)
 # --------------------------------------------------------------------------- #
 def test_package_version_string_matches_release() -> None:
-    """The in-package version must read the current release (0.12.0). The
+    """The in-package version must read the current release (0.13.0). The
     version-string-drift guard landed in v0.9.0 — the package string had been
     stuck at 0.7.0 while the GitHub lineage had already advanced to v0.8.0.
     This guard now pins the current shipped version so the drift can't recur.
     Red->green on the v0.9.0 fix: pre-fix __version__ == '0.7.0'.
+
+    v0.13.0 moved the pinned string here only: src/diffgate/__init__.py is now
+    the single version source, and every other surface is checked against it by
+    tests/test_v0_13_0_fixes.py instead of carrying its own literal.
     """
     import diffgate
 
-    assert diffgate.__version__ == "0.12.0", diffgate.__version__
+    assert diffgate.__version__ == "0.13.0", diffgate.__version__
 
 
 def test_pyproject_version_matches_release() -> None:
-    """The pyproject.toml [project] version must read the current release
-    (0.12.0) so `pip install` reports the shipped string. Red->green on the
-    v0.9.0 fix: pre-fix version == '0.7.0'.
+    """pyproject.toml must report the current release (0.13.0) so `pip install`
+    reports the shipped string. Red->green on the v0.9.0 fix: pre-fix
+    version == '0.7.0'.
+
+    v0.13.0 removed the literal: [project] now declares `dynamic = ["version"]`
+    and hatchling reads it from src/diffgate/__init__.py, so there is no second
+    copy left to drift. The assertion moved to the derived wiring.
     """
     data = tomllib.loads((_REPO_ROOT / "pyproject.toml").read_text())
-    assert data["project"]["version"] == "0.12.0", data["project"]["version"]
+    assert "version" not in data["project"], data["project"].get("version")
+    assert data["project"]["dynamic"] == ["version"]
+    assert data["tool"]["hatch"]["version"]["path"] == "src/diffgate/__init__.py"

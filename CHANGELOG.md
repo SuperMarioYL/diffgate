@@ -6,6 +6,65 @@ All notable changes to DiffGate are documented here. Format follows
 
 ## [Unreleased]
 
+## [0.13.0]
+
+Five fixes to the CLI's bad-input contract and to the project's own metadata.
+A malformed `--claim-file` payload and a source file that isn't valid UTF-8 now
+return the documented clean exit-2 usage error instead of a Python traceback at
+exit 1; every packaged metadata URL points at the real repository; the changelog
+documents v0.8.0 and v0.9.0 again and its link references work; and
+`src/diffgate/__init__.py` is now the single version source that
+`pyproject.toml` derives from. No verifier semantics, verdicts or output shapes
+changed.
+
+### Fixed
+- **A claim-file payload that violates the published schema is a usage error,
+  not a traceback.** Five shapes escaped the CLI's handlers and leaked a
+  `TypeError` at exit code 1 — the exit code an agent loop reads as "the edit
+  failed verification". `{"files": 5}` (not iterable), `{"base_dir": 5}` (not a
+  `PathLike`), `{"claimed_actions": ["foo"]}` and a bare `["foo"]` (a non-object
+  action entry), a non-string `before`/`after`/`language` in a `files` entry,
+  and a non-list `claimed_actions` all raised out of the reader.
+  `ClaimedAction.from_dict` now rejects a non-object action with a `ValueError`
+  — the single action-shape boundary the CLI, the MCP `verify_edit` tool and the
+  bench all funnel through — and the multi-file reader validates the whole
+  payload against `examples/claim_file_schema.json` before it uses any field.
+  Every one of these now produces the same clean `claim-file error: …` at exit
+  2 as a missing key always did.
+- **A source file that isn't valid UTF-8 is a usage error too.** `verify` and
+  `diff` read `--before`/`--after` directly, so a binary or latin-1 file aborted
+  the command with a `UnicodeDecodeError` traceback at exit 1. The multi-file
+  path already reported the same file as a clean exit-2 claim-file error, so the
+  two single-file paths were the gap; both now read through one helper that
+  reports an unreadable file as a usage error. Deliberately not
+  `errors="replace"`: silently decoding a mutated blob could turn a bad-input
+  error into a confidently wrong verdict.
+- **The packaged metadata URLs no longer point at a nonexistent org.**
+  `pyproject.toml`'s `[project.urls]` (Homepage / Repository / Issues /
+  Changelog) and `examples/claim_file_schema.json`'s `$id` named
+  `github.com/supermario-leo/diffgate`, which returns 404, while the READMEs,
+  `web/site.json` and the Pages workflow all name `SuperMarioYL/diffgate`. So
+  `pip show diffgate` reported a dead Homepage. All five URLs now name the real
+  repository.
+- **The changelog documents v0.8.0 and v0.9.0 again, and its links work.** The
+  file promises that all notable changes are documented here, but the headings
+  jumped straight from `[0.10.0]` to `[0.7.0]` although both tags exist, and the
+  reference block stopped at `[0.7.0]` — so the `[0.10.0]` / `[0.11.0]` /
+  `[0.12.0]` headings rendered as literal bracketed text and `[Unreleased]`
+  compared `v0.7.0...HEAD`, five releases stale. The two missing sections are
+  restored from their shipped tag commits and every reference from 0.8.0 up is
+  defined.
+
+### Changed
+- **`src/diffgate/__init__.py` is the single version source.**
+  `pyproject.toml` carried a second, independent `version` string that had to be
+  bumped in lockstep by hand — the drift that put the package string at 0.7.0
+  while the lineage was at v0.8.0. `[project]` now declares
+  `dynamic = ["version"]` with hatchling reading
+  `src/diffgate/__init__.py`, so the duplicate copy is gone. A lockstep
+  regression test asserts the package constant, `web/site.json`'s version keys
+  and the newest changelog heading all agree.
+
 ## [0.12.0]
 
 Two more signature-visibility over-flag fixes (Rust trait method
@@ -138,6 +197,40 @@ plus a truthful-reason fix for a scoped-delete sub-case.
   "'foo' is still present, but not in scope '<claimed>'". Ordered after the
   "deleted from wrong scope" branch so a symbol that WAS deleted (elsewhere)
   keeps its "was deleted, but not in scope" reason.
+
+## [0.9.0]
+
+### Added
+- **C++ method declarations are parsed.** A header prototype — a free-standing
+  `void bar();` or one inside `struct Foo { void bar(); };` — yielded no symbol
+  at all, so a truthful `signature_change bar scope=Foo` / `add bar`
+  false-failed on the dominant C++ header edit surface. A
+  `declaration`/`field_declaration` whose declarator chain holds a
+  `function_declarator` now emits a function/method symbol with an empty body
+  hash; a data declaration (`int x;`, `int y = 5;`) stays invisible.
+
+### Fixed
+- **C++ and TS namespaces propagate their name as scope.** A free function
+  inside `namespace Foo { ... }` (and TS/TSX `namespace` / `module`) was emitted
+  with `scope=''`, while the same symbol written out-of-line as
+  `void Foo::bar() {}` keyed by `scope='Foo'` — so a contract-following agent
+  emitting `signature_change bar scope=Foo` false-failed a truthful edit.
+- **The in-package version string can no longer drift from the release.** The
+  package constant had been stuck at 0.7.0 while the GitHub lineage had already
+  advanced to v0.8.0, so `diffgate --version` and `pip install` reported a stale
+  release. A guard pins the shipped string in `src/diffgate/__init__.py` and
+  `pyproject.toml`.
+
+## [0.8.0]
+
+### Added
+- **TS/TSX and C++ enum declarations are parsed as class symbols.** A TS
+  `enum Color { Red, Green }` (and `const enum`), or a C++ `enum Color { Red }`
+  / `enum class Color` / `enum struct`, yielded zero symbols, so a truthful
+  `add Color` / `rename Color→Hue` false-failed — the no-op net even called the
+  rename a no-op. The enum name comes from the grammar's `name` field and the
+  enumerator body is hashed through the standard `body` field, so the rule-map
+  entry is the whole fix.
 
 ## [0.7.0]
 
@@ -354,11 +447,17 @@ First public release covering the m1 milestone:
 - Claim kinds: `rename`, `add`, `delete`.
 - ≥20 hand-crafted silent-lie fixtures in `tests/fixtures/silent_lie_cases.json`.
 
-[Unreleased]: https://github.com/supermario-leo/diffgate/compare/v0.7.0...HEAD
-[0.7.0]: https://github.com/supermario-leo/diffgate/compare/v0.6.0...v0.7.0
-[0.6.0]: https://github.com/supermario-leo/diffgate/compare/v0.5.0...v0.6.0
-[0.5.0]: https://github.com/supermario-leo/diffgate/compare/v0.4.0...v0.5.0
-[0.4.0]: https://github.com/supermario-leo/diffgate/compare/v0.3.0...v0.4.0
-[0.3.0]: https://github.com/supermario-leo/diffgate/compare/v0.2.0...v0.3.0
-[0.2.0]: https://github.com/supermario-leo/diffgate/compare/v0.1.0...v0.2.0
-[0.1.0]: https://github.com/supermario-leo/diffgate/releases/tag/v0.1.0
+[Unreleased]: https://github.com/SuperMarioYL/diffgate/compare/v0.13.0...HEAD
+[0.13.0]: https://github.com/SuperMarioYL/diffgate/compare/v0.12.0...v0.13.0
+[0.12.0]: https://github.com/SuperMarioYL/diffgate/compare/v0.11.0...v0.12.0
+[0.11.0]: https://github.com/SuperMarioYL/diffgate/compare/v0.10.0...v0.11.0
+[0.10.0]: https://github.com/SuperMarioYL/diffgate/compare/v0.9.0...v0.10.0
+[0.9.0]: https://github.com/SuperMarioYL/diffgate/compare/v0.8.0...v0.9.0
+[0.8.0]: https://github.com/SuperMarioYL/diffgate/compare/v0.7.0...v0.8.0
+[0.7.0]: https://github.com/SuperMarioYL/diffgate/compare/v0.6.0...v0.7.0
+[0.6.0]: https://github.com/SuperMarioYL/diffgate/compare/v0.5.0...v0.6.0
+[0.5.0]: https://github.com/SuperMarioYL/diffgate/compare/v0.4.0...v0.5.0
+[0.4.0]: https://github.com/SuperMarioYL/diffgate/compare/v0.3.0...v0.4.0
+[0.3.0]: https://github.com/SuperMarioYL/diffgate/compare/v0.2.0...v0.3.0
+[0.2.0]: https://github.com/SuperMarioYL/diffgate/compare/v0.1.0...v0.2.0
+[0.1.0]: https://github.com/SuperMarioYL/diffgate/releases/tag/v0.1.0

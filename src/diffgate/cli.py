@@ -266,8 +266,8 @@ def verify_cmd(
     lang = _detect_language(before, payload_lang or language)
 
     edit = EditClaim(
-        before_blob=before.read_text(encoding="utf-8"),
-        after_blob=after.read_text(encoding="utf-8"),
+        before_blob=_read_source(before),
+        after_blob=_read_source(after),
         language=lang,
         claimed_actions=actions,
     )
@@ -298,15 +298,14 @@ def _run_multi_file(
     payload: dict, claim_file: str, language: str, json_output: bool
 ) -> None:
     """Build FileClaims from a multi-file claim payload and gate them at once."""
+    try:
+        files = _validated_files(payload)
+    except ValueError as exc:
+        _console_stderr.print(f"[bold red]claim-file error:[/bold red] {exc}")
+        raise typer.Exit(code=2) from exc
     base = _claim_file_base_dir(payload, claim_file)
     file_claims: list[FileClaim] = []
-    for entry in payload["files"]:
-        if not isinstance(entry, dict):
-            _console_stderr.print(
-                "[bold red]claim-file error:[/bold red] each `files` entry must "
-                "be an object."
-            )
-            raise typer.Exit(code=2)
+    for entry in files:
         try:
             before_path = (base / entry["before"]).resolve()
             after_path = (base / entry["after"]).resolve()
@@ -393,8 +392,8 @@ def diff_cmd(
         raise typer.Exit(code=2)
     lang = _detect_language(before, language)
     diff = compute_diff(
-        before.read_text(encoding="utf-8"),
-        after.read_text(encoding="utf-8"),
+        _read_source(before),
+        _read_source(after),
         lang,
     )
     if json_output:
@@ -505,7 +504,70 @@ def _claim_file_base_dir(payload: dict, claim_file: str) -> Path:
     return Path(claim_file).resolve().parent
 
 
+def _validated_files(payload: dict) -> list[dict]:
+    """Return the ``files`` list of a multi-file payload, validating its shape.
+
+    The accepted shape is published in ``examples/claim_file_schema.json``.
+    Every field is checked *by type* before it is used, because a payload that
+    violates the schema used to raise ``TypeError``/``AttributeError`` out of
+    the entry loop and leak a traceback at exit 1 — indistinguishable from a
+    failed verification to an agent gating on exit code. ``{"files": 5}``
+    (not iterable), ``{"base_dir": 5}`` (not a ``PathLike``), a non-string
+    ``before``/``after``/``language`` and a non-list ``claimed_actions`` all
+    reach here; each is now the clean exit-2 usage error the rest of the
+    claim-file reader already produces. Element-level action shapes are
+    validated by ``ClaimedAction.from_dict``.
+    """
+    files = payload.get("files")
+    if not isinstance(files, list) or not files:
+        raise ValueError("`files` must be a non-empty list of per-file entries.")
+    base_dir = payload.get("base_dir")
+    if base_dir is not None and not isinstance(base_dir, str):
+        raise ValueError("`base_dir` must be a string.")
+    for entry in files:
+        if not isinstance(entry, dict):
+            raise ValueError("each `files` entry must be an object.")
+        for field in ("before", "after", "path", "language"):
+            value = entry.get(field)
+            if value is not None and not isinstance(value, str):
+                raise ValueError(f"`{field}` must be a string.")
+        for field in ("before", "after", "claimed_actions"):
+            if field not in entry:
+                raise ValueError(f"`{field}` is required in each `files` entry.")
+        if not isinstance(entry["claimed_actions"], list):
+            raise ValueError("`claimed_actions` must be a list.")
+    return files
+
+
+def _read_source(path: Path) -> str:
+    """Read a source file as UTF-8, reporting a bad file as a clean exit-2 error.
+
+    ``verify``/``diff`` used to call ``Path.read_text`` directly, so a file
+    that isn't valid UTF-8 (or can't be read) aborted the command with a
+    ``UnicodeDecodeError`` traceback at exit 1 — the exit code an agent loop
+    reads as "the edit failed verification". The multi-file path already
+    reported the same file as a clean exit-2 claim-file error, so this brings
+    the two single-file paths in line. Deliberately not ``errors="replace"``:
+    feeding a mutated blob to the verifier would turn a bad-input error into a
+    confidently wrong verdict.
+    """
+    try:
+        return path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as exc:
+        _console_stderr.print(
+            f"[bold red]error:[/bold red] cannot read {path}: {exc}"
+        )
+        raise typer.Exit(code=2) from exc
+
+
 def _detect_language(path: Path, override: str) -> str:
+    if not isinstance(override, str):
+        # A non-string ``language`` in a claim-file payload used to reach
+        # ``override.lower()`` and raise ``AttributeError`` — the same
+        # unhandled-traceback-at-exit-1 class as the shape checks above.
+        raise typer.BadParameter(
+            f"language must be a string, got {type(override).__name__}"
+        )
     if override and override.lower() != "auto":
         lang = override.lower()
         # An explicit non-`auto` ``--lang`` used to be returned UNCHECKED, so a

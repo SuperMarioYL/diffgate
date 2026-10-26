@@ -11,7 +11,10 @@ Public surface:
 
 from __future__ import annotations
 
-__version__ = "0.12.0"
+# The single authoritative version for the project. pyproject.toml declares
+# `dynamic = ["version"]` and hatchling reads this string ([tool.hatch.version]),
+# so there is no second copy to drift out of lockstep.
+__version__ = "0.13.0"
 
 __all__ = [
     "__version__",

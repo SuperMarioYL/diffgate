@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://github.com/supermario-leo/diffgate/blob/main/examples/claim_file_schema.json",
+  "$id": "https://github.com/SuperMarioYL/diffgate/blob/main/examples/claim_file_schema.json",
   "title": "DiffGate claim file",
   "description": "Structured input for `diffgate verify --claim-file <file>` (pass `-` to read this JSON from stdin). It gives the CLI the same structured `claimed_actions` payload the MCP `verify_edit` tool already accepts, so an agent emitting JSON no longer has to round-trip through the `--claim` mini-DSL. Two shapes are accepted: a SINGLE-file claim (used with --before/--after on the command line) and a MULTI-file claim that carries its own before/after file paths so a whole edit spanning many files is gated in one call.",
   "oneOf": [
